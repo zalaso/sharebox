@@ -124,9 +124,8 @@ docker compose --profile build build runtime
 docker compose up -d --build --remove-orphans
 
 say "5/6 Backup automatico ogni notte"
-sed "s#^ExecStart=.*#ExecStart=$DEPLOY/backup/backup.sh#" "$DEPLOY/backup/sharebox-backup.service" >/etc/systemd/system/sharebox-backup.service
+sed "s#^ExecStart=.*#ExecStart=/bin/bash $DEPLOY/backup/backup.sh#" "$DEPLOY/backup/sharebox-backup.service" >/etc/systemd/system/sharebox-backup.service
 cp "$DEPLOY/backup/sharebox-backup.timer" /etc/systemd/system/
-chmod 700 "$DEPLOY/backup/"*.sh
 systemctl daemon-reload
 systemctl enable --now sharebox-backup.timer >/dev/null
 echo "Backup in $ROOT/backups alle 3:30 (copia cifrata su Google Drive: deploy/backup/configura-drive.sh)"

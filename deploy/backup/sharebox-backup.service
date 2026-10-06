@@ -6,4 +6,4 @@ Requires=docker.service
 [Service]
 Type=oneshot
 # deploy/install.sh sostituisce il percorso con quello dell'installazione.
-ExecStart=/opt/sharebox/deploy/backup/backup.sh
+ExecStart=/bin/bash /opt/sharebox/deploy/backup/backup.sh
