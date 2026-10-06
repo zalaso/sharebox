@@ -1,0 +1,98 @@
+:root {
+  --sfondo: #f6f5f2;
+  --carta: #ffffff;
+  --testo: #1d1c1a;
+  --tenue: #6b6964;
+  --linea: #e4e1da;
+  --accento: #2563c9;
+  --accento-testo: #ffffff;
+  --ferie: #3b82f6;
+  --permesso: #f59e0b;
+  --malattia: #ef4444;
+  --altro: #8b5cf6;
+  --festivo: #efece6;
+  --oggi: #fff7d6;
+  --errore: #b4321f;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --sfondo: #151514;
+    --carta: #1e1d1b;
+    --testo: #ecebe7;
+    --tenue: #9d9a94;
+    --linea: #34322f;
+    --accento: #8ab4f8;
+    --accento-testo: #10213d;
+    --festivo: #26241f;
+    --oggi: #3a3420;
+    --errore: #f08a78;
+    color-scheme: dark;
+  }
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--sfondo); color: var(--testo); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+header { max-width: 64rem; margin: 0 auto; padding: 1.75rem 1rem .5rem; }
+h1 { margin: 0; font-size: 1.7rem; letter-spacing: -.01em; }
+h2 { margin: 0 0 .75rem; font-size: 1.05rem; }
+main { max-width: 64rem; margin: 0 auto; padding: .5rem 1rem 3rem; display: grid; gap: 1rem; }
+.muted { color: var(--tenue); margin: .25rem 0 0; }
+.card { background: var(--carta); border: 1px solid var(--linea); border-radius: 12px; padding: 1rem 1.1rem; min-width: 0; }
+.testata { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem; margin-bottom: .75rem; }
+.testata h2 { margin: 0; }
+
+form { display: grid; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); gap: .75rem; align-items: end; }
+label { display: grid; gap: .25rem; font-size: .85rem; color: var(--tenue); }
+label.largo { grid-column: span 2; }
+input, select { font: inherit; color: var(--testo); background: var(--carta); border: 1px solid var(--linea); border-radius: 8px; padding: .45rem .55rem; min-width: 0; }
+.azioni { display: flex; gap: .5rem; }
+button { font: inherit; cursor: pointer; border-radius: 8px; padding: .45rem .9rem; border: 1px solid var(--accento); background: var(--accento); color: var(--accento-testo); }
+button.secondario { background: transparent; color: var(--testo); border-color: var(--linea); }
+button.piccolo { padding: .15rem .55rem; font-size: .82rem; }
+button:disabled { opacity: .55; cursor: not-allowed; }
+:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
+.suggerimento { grid-column: 1 / -1; margin: 0; font-size: .82rem; color: var(--tenue); }
+.errore { margin: 0; padding: .6rem .8rem; border-radius: 8px; background: color-mix(in srgb, var(--errore) 12%, var(--carta)); color: var(--errore); }
+
+.mese { display: flex; align-items: center; gap: .5rem; }
+.mese strong { min-width: 9rem; text-align: center; }
+.scorri { overflow-x: auto; }
+#calendario { border-collapse: collapse; font-size: .78rem; width: 100%; }
+#calendario th, #calendario td { border: 1px solid var(--linea); text-align: center; padding: 0; height: 1.9rem; min-width: 1.55rem; }
+#calendario th.nome, #calendario td.nome { text-align: left; padding: 0 .5rem; min-width: 8rem; max-width: 12rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; position: sticky; left: 0; background: var(--carta); z-index: 1; }
+#calendario thead th { font-weight: 500; color: var(--tenue); line-height: 1.1; }
+#calendario .festivo { background: var(--festivo); }
+#calendario .oggi { box-shadow: inset 0 0 0 2px var(--accento); }
+#calendario td.assente { position: relative; }
+#calendario td.assente::after { content: ""; position: absolute; inset: 4px 1px; border-radius: 4px; background: var(--colore); opacity: .85; }
+.vuoto { color: var(--tenue); padding: .5rem 0; }
+
+.legenda { display: flex; flex-wrap: wrap; gap: .4rem 1rem; margin: .75rem 0 0; font-size: .8rem; color: var(--tenue); }
+.legenda i { display: inline-block; width: .8rem; height: .8rem; border-radius: 3px; margin-right: .35rem; vertical-align: -1px; }
+.ferie { --colore: var(--ferie); }
+.permesso { --colore: var(--permesso); }
+.malattia { --colore: var(--malattia); }
+.altro { --colore: var(--altro); }
+.legenda i.ferie, .legenda i.permesso, .legenda i.malattia, .legenda i.altro { background: var(--colore); }
+.legenda i.festivo { background: var(--festivo); border: 1px solid var(--linea); }
+
+.filtro { display: flex; flex-direction: row; align-items: center; gap: .4rem; font-size: .85rem; }
+.elenco { list-style: none; margin: 0; padding: 0; }
+.elenco li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: .2rem .75rem; align-items: center; padding: .65rem 0; border-top: 1px solid var(--linea); }
+.elenco li:first-child { border-top: 0; }
+.punto { width: .7rem; height: .7rem; border-radius: 50%; background: var(--colore); }
+.chi { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dettaglio { grid-column: 2; font-size: .85rem; color: var(--tenue); overflow-wrap: anywhere; }
+.comandi { grid-row: 1 / span 2; grid-column: 3; display: flex; gap: .35rem; }
+
+table.riepilogo { border-collapse: collapse; width: 100%; font-size: .9rem; }
+table.riepilogo th, table.riepilogo td { text-align: right; padding: .4rem .6rem; border-bottom: 1px solid var(--linea); white-space: nowrap; }
+table.riepilogo th:first-child, table.riepilogo td:first-child { text-align: left; }
+table.riepilogo thead th { color: var(--tenue); font-weight: 500; font-size: .82rem; }
+
+@media (max-width: 560px) {
+  label.largo { grid-column: 1 / -1; }
+  .elenco li { grid-template-columns: auto minmax(0, 1fr); }
+  .comandi { grid-row: auto; grid-column: 2; }
+}

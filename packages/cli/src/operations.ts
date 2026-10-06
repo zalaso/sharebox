@@ -1,7 +1,7 @@
 // Operazioni condivise da CLI e server MCP.
 import { existsSync, statSync } from "node:fs";
-import { basename, resolve } from "node:path";
-import type { Grant, Role, ShareboxClient, ToolInfo } from "./client";
+import { basename, join, resolve } from "node:path";
+import { ShareboxError, type Grant, type Role, type ShareboxClient, type ToolInfo } from "./client";
 import { ProjectError, bundleWorker, collectPublic, findWorker, readManifest, writeManifest } from "./project";
 
 export interface PublishResult {
@@ -33,7 +33,19 @@ export async function publish(client: ShareboxClient, dir: string, options: { na
     await writeManifest(folder, { ...manifest, name, id });
     created = true;
   }
-  const tool = await client.deploy(id, publicFiles.files, worker);
+  let tool: ToolInfo;
+  try {
+    tool = await client.deploy(id, publicFiles.files, worker);
+  } catch (error) {
+    // Tipico con una cartella copiata da un'altra istanza o con un tool eliminato: l'id non esiste qui.
+    if (!created && error instanceof ShareboxError && error.status === 404) {
+      throw new ProjectError(
+        `Il tool ${id} indicato in sharebox.json non esiste su questa ShareBox (eliminato, o cartella pubblicata su un'altra istanza). ` +
+          `Per crearne uno nuovo togli la riga "id" da ${join(folder, "sharebox.json")} e ripubblica.`,
+      );
+    }
+    throw error;
+  }
   return { tool, created, files: publicFiles.count, bytes: publicFiles.bytes, worker: Boolean(worker) };
 }
 

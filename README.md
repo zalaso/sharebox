@@ -105,6 +105,10 @@ A tool is a folder with `public/` (HTML, CSS, JS) and, optionally, a `worker.ts`
 
 Users with *can use* edit only their own records; *can manage* edits everything — enforced on the server. Full CLI reference: [docs/cli.md](docs/cli.md).
 
+**Complete example:** [`examples/ferie`](examples/ferie) — the team vacation tracker from the demo, built by an agent through MCP: team calendar, upcoming absences with working-day counts (Italian public holidays included), yearly summary. Plain HTML/CSS/JS, no dependencies.
+
+<img src="docs/img/esempio-ferie.png" alt="Example: team vacation tracker" width="560">
+
 ## Status
 
 Young project, running on the author's private instance. Working today: publishing, sharing, storage, CLI, MCP, dashboard, backups, self-hosted installer, CI.

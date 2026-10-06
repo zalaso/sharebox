@@ -105,6 +105,10 @@ Un tool è una cartella con `public/` (HTML, CSS, JS) e, se serve, un `worker.ts
 
 Con *può usare* si modificano solo i propri record, con *può gestire* tutti: lo controlla il server. Guida completa della CLI: [docs/cli.md](docs/cli.md).
 
+**Esempio completo:** [`examples/ferie`](examples/ferie), il tracker ferie della demo, costruito da un agente tramite MCP: calendario del team, prossime assenze con i giorni lavorativi (festività italiane incluse), riepilogo annuale. HTML, CSS e JavaScript semplici, senza dipendenze.
+
+<img src="docs/img/esempio-ferie.png" alt="Esempio: tracker ferie del team" width="560">
+
 ## Stato del progetto
 
 Progetto giovane, in uso sull'istanza privata dell'autore. Funziona oggi: pubblicazione, condivisione, dati, CLI, MCP, dashboard, backup, installatore self-hosted, CI.

@@ -113,3 +113,11 @@ describe("parseTarget e parseRole", () => {
     expect(parseRole("gestisci")).toBe("manage");
   });
 });
+
+describe("publish con un id che non esiste su questa istanza", () => {
+  it("spiega come ripartire invece di mostrare un 404", async () => {
+    const platform = fakePlatform();
+    const dir = await tempProject({ "sharebox.json": '{ "name": "Copiato", "id": "idsconosciuto" }', "public/index.html": "x" });
+    await expect(publish(platform.client, dir)).rejects.toThrow(/non esiste su questa ShareBox.*togli la riga "id"/s);
+  });
+});

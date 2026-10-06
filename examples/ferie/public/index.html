@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ferie del team</title>
+  <link rel="stylesheet" href="/stile.css">
+  <script src="/__sharebox/sdk.js"></script>
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Ferie del team</h1>
+      <p class="muted" id="saluto">Caricamento…</p>
+    </div>
+  </header>
+
+  <main>
+    <p class="errore" id="errore" role="alert" hidden></p>
+
+    <section class="card" aria-labelledby="titolo-modulo">
+      <h2 id="titolo-modulo">Nuova assenza</h2>
+      <form id="modulo">
+        <label>Dal <input type="date" name="dal" required></label>
+        <label>Al <input type="date" name="al" required></label>
+        <label>Tipo
+          <select name="tipo">
+            <option value="ferie">Ferie</option>
+            <option value="permesso">Permesso</option>
+            <option value="malattia">Malattia</option>
+            <option value="altro">Altro</option>
+          </select>
+        </label>
+        <label class="largo">Nota <input name="nota" maxlength="120" placeholder="facoltativa" autocomplete="off"></label>
+        <div class="azioni">
+          <button type="submit" id="salva">Aggiungi</button>
+          <button type="button" class="secondario" id="annulla" hidden>Annulla</button>
+        </div>
+        <p class="suggerimento" id="anteprima-giorni"></p>
+      </form>
+    </section>
+
+    <section class="card" aria-labelledby="titolo-calendario">
+      <div class="testata">
+        <h2 id="titolo-calendario">Calendario</h2>
+        <div class="mese">
+          <button type="button" class="secondario" id="mese-prima" aria-label="Mese precedente">‹</button>
+          <strong id="mese-nome"></strong>
+          <button type="button" class="secondario" id="mese-dopo" aria-label="Mese successivo">›</button>
+        </div>
+      </div>
+      <div class="scorri"><table id="calendario"></table></div>
+      <p class="legenda">
+        <span><i class="ferie"></i>Ferie</span>
+        <span><i class="permesso"></i>Permesso</span>
+        <span><i class="malattia"></i>Malattia</span>
+        <span><i class="altro"></i>Altro</span>
+        <span><i class="festivo"></i>Weekend e festivi</span>
+      </p>
+    </section>
+
+    <section class="card" aria-labelledby="titolo-prossime">
+      <div class="testata">
+        <h2 id="titolo-prossime">Prossime assenze</h2>
+        <label class="filtro"><input type="checkbox" id="solo-mie"> Solo le mie</label>
+      </div>
+      <ul class="elenco" id="prossime"></ul>
+    </section>
+
+    <section class="card" aria-labelledby="titolo-riepilogo">
+      <h2 id="titolo-riepilogo">Riepilogo</h2>
+      <div class="scorri"><table class="riepilogo" id="riepilogo"></table></div>
+      <p class="suggerimento">Giorni lavorativi: esclusi sabato, domenica e festività nazionali italiane.</p>
+    </section>
+  </main>
+</body>
+</html>
