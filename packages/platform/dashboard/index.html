@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ShareBox</title>
+  <link rel="stylesheet" href="/app/app.css">
+  <script src="/app/app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/app">ShareBox</a>
+    <div class="account">
+      <span id="account-name"></span>
+      <a href="/auth/logout?next=/">Esci</a>
+    </div>
+  </header>
+  <main id="view" aria-live="polite">
+    <p class="muted">Caricamento…</p>
+  </main>
+  <div id="toast" role="status" hidden></div>
+</body>
+</html>

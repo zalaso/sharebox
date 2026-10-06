@@ -1,0 +1,9 @@
+[Unit]
+Description=Backup di ShareBox
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+# deploy/install.sh sostituisce il percorso con quello dell'installazione.
+ExecStart=/opt/sharebox/deploy/backup/backup.sh

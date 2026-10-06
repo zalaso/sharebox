@@ -1,0 +1,12 @@
+# Contesto di build delle immagini (radice del repository): solo il codice sorgente.
+**/node_modules
+.git
+.claude
+data
+backups
+deploy/.env
+deploy/platform/*.mjs
+deploy/platform/runtime-entry.js
+deploy/platform/dashboard
+deploy/orchestrator/*.mjs
+packages/cli/dist

@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    // Solo per i test (node:sqlite al posto dello SQLite di workerd); il codice in src non usa Node.
+    "types": ["node"]
+  },
+  "include": ["src", "test"]
+}

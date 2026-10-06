@@ -1,0 +1,60 @@
+{{/* Modello riempito da Caddy (templates) con i dati di deploy/.env: OPERATOR_NAME, OPERATOR_EMAIL, HOSTING_DESCRIPTION, OFFSITE_BACKUP. */}}
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Informativa privacy — ShareBox</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main>
+    <p><a href="/">ShareBox</a></p>
+    <h1>Informativa privacy</h1>
+    <p class="meta">Ultimo aggiornamento: 3 ottobre 2026</p>
+
+    <h2>Chi gestisce ShareBox</h2>
+    <p>Questa istanza di ShareBox è gestita da {{html (env "OPERATOR_NAME")}}, titolare del trattamento dei dati descritti in questa pagina. Contatto: <a href="mailto:{{html (env "OPERATOR_EMAIL")}}">{{html (env "OPERATOR_EMAIL")}}</a>.</p>
+
+    <h2>Quali dati trattiamo</h2>
+    <ul>
+      <li><strong>Dati dell'account Google</strong>, ricevuti quando accedi con Google: nome, indirizzo email, identificativo dell'account e, per gli account aziendali Google Workspace, il dominio dell'organizzazione. Non chiediamo accesso ad altri dati del tuo account Google (email, file, contatti, calendario).</li>
+      <li><strong>Cookie di sessione</strong>, tecnici e necessari per mantenerti connesso. Non usiamo cookie di profilazione, pubblicità o analisi del traffico.</li>
+      <li><strong>Dati inseriti nei tool</strong>: quello che scrivi in un tool viene salvato nello spazio dati di quel tool.</li>
+      <li><strong>Registro delle attività</strong>: per sicurezza registriamo chi pubblica, modifica, condivide o elimina un tool, con data e ora.</li>
+      <li><strong>Log tecnici</strong> di errore e di funzionamento del server, che possono includere l'indirizzo IP.</li>
+    </ul>
+
+    <h2>Perché li trattiamo</h2>
+    <ul>
+      <li>Per farti accedere ai tool condivisi con te e verificare che tu ne abbia il permesso.</li>
+      <li>Per far funzionare i tool: ogni tool riceve il tuo nome e la tua email, così può mostrarti i tuoi dati.</li>
+      <li>Per la sicurezza del servizio e per individuare abusi o malfunzionamenti.</li>
+    </ul>
+    <p>La base giuridica è l'esecuzione del servizio che richiedi quando accedi a un tool e il legittimo interesse alla sicurezza della piattaforma.</p>
+
+    <h2>Dati inseriti nei tool</h2>
+    <p>Ogni tool è creato e gestito da una persona (il creatore del tool), che decide quali dati raccoglie e con chi condividerlo. Per i dati che inserisci in un tool, il creatore del tool è titolare del trattamento e ShareBox li conserva per suo conto. Per domande su quei dati rivolgiti a chi ti ha condiviso il tool.</p>
+    <p>I dati di ogni tool sono separati da quelli degli altri tool: un tool non può leggere i dati di un altro.</p>
+
+    <h2>Dove sono conservati</h2>
+    <p>{{html (env "HOSTING_DESCRIPTION")}}.{{if eq (env "OFFSITE_BACKUP") "google-drive"}} Una copia di sicurezza giornaliera, cifrata prima di lasciare il server, è conservata per 30 giorni su Google Drive (Google): senza le chiavi, che restano a chi gestisce il servizio, il contenuto non è leggibile.{{end}} Non vendiamo i dati, non li usiamo per pubblicità e non li cediamo a terzi, salvo obblighi di legge.</p>
+
+    <h2>Per quanto tempo</h2>
+    <ul>
+      <li>I dati del tuo account restano finché usi ShareBox; puoi chiederne la cancellazione in qualsiasi momento.</li>
+      <li>I dati di un tool vengono cancellati quando il creatore elimina il tool.</li>
+      <li>Il registro delle attività e i log tecnici vengono conservati per il tempo necessario alla sicurezza del servizio.</li>
+    </ul>
+
+    <h2>Uso dei dati ricevuti da Google</h2>
+    <p>L'uso e il trasferimento ad altre applicazioni delle informazioni ricevute dalle API di Google rispettano le <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, inclusi i requisiti di uso limitato (Limited Use).</p>
+
+    <h2>I tuoi diritti</h2>
+    <p>Puoi chiedere di accedere ai tuoi dati, correggerli, cancellarli, limitarne il trattamento, opporti o riceverne una copia, scrivendo a <a href="mailto:{{html (env "OPERATOR_EMAIL")}}">{{html (env "OPERATOR_EMAIL")}}</a>. Puoi anche presentare reclamo al Garante per la protezione dei dati personali (<a href="https://www.garanteprivacy.it">garanteprivacy.it</a>).</p>
+
+    <h2>Modifiche</h2>
+    <p>Se questa informativa cambia, la data in alto viene aggiornata.</p>
+  </main>
+</body>
+</html>

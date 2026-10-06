@@ -1,0 +1,11 @@
+{
+  "name": "@sharebox/gateway",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@sharebox/shared": "*"
+  }
+}

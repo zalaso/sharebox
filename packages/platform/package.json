@@ -1,0 +1,9 @@
+{
+  "name": "@sharebox/platform",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@sharebox/gateway": "*",
+    "@sharebox/shared": "*"
+  }
+}

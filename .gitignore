@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.env
+*.log
+# Generati da `npm run build`
+deploy/platform/platform.mjs
+deploy/platform/runtime-entry.js
+deploy/orchestrator/orchestrator.mjs
+packages/cli/dist/
+deploy/platform/dashboard/
+# Dati di un'installazione (sul server)
+/data/
+/backups/

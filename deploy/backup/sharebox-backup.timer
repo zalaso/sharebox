@@ -1,0 +1,11 @@
+[Unit]
+Description=Backup giornaliero di ShareBox
+
+[Timer]
+OnCalendar=*-*-* 03:30
+RandomizedDelaySec=10min
+# Se il server era spento all'ora prevista, il backup parte appena si riaccende.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

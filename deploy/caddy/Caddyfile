@@ -1,0 +1,32 @@
+*.{$TOOLS_DOMAIN} {
+	tls {
+		dns duckdns {$DUCKDNS_TOKEN}
+		resolvers 1.1.1.1 8.8.8.8
+	}
+	encode zstd gzip
+	reverse_proxy platform:8080
+}
+
+# Piattaforma: login, dashboard e API al processo platform, il resto sono le pagine statiche (home, privacy).
+{$PLATFORM_DOMAIN} {
+	encode zstd gzip
+	handle /auth/* {
+		reverse_proxy platform:8080
+	}
+	handle /app* {
+		reverse_proxy platform:8080
+	}
+	handle /api/* {
+		request_body {
+			max_size 40MB
+		}
+		reverse_proxy platform:8080
+	}
+	handle {
+		root * /srv/site
+		try_files {path} {path}.html
+		# Le pagine sono modelli: titolare, contatto e hosting arrivano da deploy/.env.
+		templates
+		file_server
+	}
+}

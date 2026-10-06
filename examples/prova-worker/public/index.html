@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Prova con worker</title>
+</head>
+<body>
+  <h1>Prova con worker</h1>
+  <p>La pagina è statica; il riquadro sotto lo calcola il worker del tool (<code>/api/saluto</code>).</p>
+  <pre id="saluto">…</pre>
+  <script>
+    fetch("/api/saluto")
+      .then((r) => r.json())
+      .then((data) => { document.getElementById("saluto").textContent = JSON.stringify(data, null, 2); });
+  </script>
+</body>
+</html>

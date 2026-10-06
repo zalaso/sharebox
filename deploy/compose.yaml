@@ -1,0 +1,102 @@
+# ShareBox: Caddy + piattaforma + orchestratore. Installazione: docs/installazione.md; gestione: deploy/README.md.
+# Si usa da questa cartella (deploy/), con la configurazione in deploy/.env.
+# I container dei tool non sono qui: li crea l'orchestratore a ogni pubblicazione (ADR 0005, 0008).
+name: sharebox
+
+# Log a dimensione fissa: senza limite Docker li tiene per sempre.
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "10m", max-file: "3" }
+
+services:
+  caddy:
+    build: ./caddy
+    logging: *logging
+    restart: unless-stopped
+    # Solo sull'IP pubblico: sull'IP Tailscale la 443 è già usata da tailscaled.
+    ports:
+      - "${PUBLIC_IP:?manca PUBLIC_IP in .env}:80:80"
+      - "${PUBLIC_IP}:443:443"
+    environment:
+      TOOLS_DOMAIN: ${TOOLS_DOMAIN:?manca TOOLS_DOMAIN in .env}
+      PLATFORM_DOMAIN: ${PLATFORM_DOMAIN:?manca PLATFORM_DOMAIN in .env}
+      DUCKDNS_TOKEN: ${DUCKDNS_TOKEN:?manca DUCKDNS_TOKEN in .env}
+      # Per le pagine home e privacy (deploy/site, modelli di Caddy).
+      OPERATOR_NAME: ${OPERATOR_NAME:?manca OPERATOR_NAME in .env}
+      OPERATOR_EMAIL: ${OPERATOR_EMAIL:?manca OPERATOR_EMAIL in .env}
+      HOSTING_DESCRIPTION: ${HOSTING_DESCRIPTION:?manca HOSTING_DESCRIPTION in .env}
+      OFFSITE_BACKUP: ${OFFSITE_BACKUP:-nessuno}
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./site:/srv/site:ro
+      - caddy-data:/data
+    networks: [edge]
+
+  # Login, permessi, API e gateway dei tool in un solo processo (ADR 0007).
+  platform:
+    build: { context: .., dockerfile: deploy/platform/Dockerfile }
+    logging: *logging
+    # Nome fisso: l'orchestratore lo collega alla rete di ogni tool.
+    container_name: sharebox-platform
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 160m
+    environment:
+      TOOLS_DOMAIN: ${TOOLS_DOMAIN}
+      PLATFORM_DOMAIN: ${PLATFORM_DOMAIN}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?manca GOOGLE_CLIENT_ID in .env}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:?manca GOOGLE_CLIENT_SECRET in .env}
+      CREATOR_EMAILS: ${CREATOR_EMAILS:?manca CREATOR_EMAILS in .env}
+      ORCHESTRATOR_URL: http://172.31.0.10:8081
+      ORCHESTRATOR_TOKEN: ${ORCHESTRATOR_TOKEN:?manca ORCHESTRATOR_TOKEN in .env}
+      DATABASE_PATH: /data/platform.sqlite
+      # Ascolta solo sulla rete edge: dalle reti dei tool la porta non è raggiungibile.
+      LISTEN_HOST: 172.30.0.10
+    volumes:
+      - platform-data:/data
+    networks:
+      edge: { ipv4_address: 172.30.0.10 }
+      control: {}
+
+  # L'unico con accesso a Docker (ADR 0008). Raggiungibile solo dalla piattaforma, sulla rete "control".
+  orchestrator:
+    build: { context: .., dockerfile: deploy/orchestrator/Dockerfile }
+    logging: *logging
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 96m
+    environment:
+      ORCHESTRATOR_TOKEN: ${ORCHESTRATOR_TOKEN}
+      LISTEN_HOST: 172.31.0.10
+      TOOLS_DIR: /tools
+      HOST_TOOLS_DIR: ${SHAREBOX_DIR:-/opt/sharebox}/data/tools
+      RUNTIME_IMAGE: sharebox-runtime:latest
+      PLATFORM_CONTAINER: sharebox-platform
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${SHAREBOX_DIR:-/opt/sharebox}/data/tools:/tools
+    networks:
+      control: { ipv4_address: 172.31.0.10 }
+
+  # Immagine dei container dei tool. Non si avvia: `docker compose --profile build build runtime`.
+  runtime:
+    build: ./runtime
+    image: sharebox-runtime:latest
+    profiles: ["build"]
+
+networks:
+  edge:
+    ipam:
+      config: [{ subnet: 172.30.0.0/24 }]
+  control:
+    internal: true
+    ipam:
+      config: [{ subnet: 172.31.0.0/24 }]
+
+volumes:
+  caddy-data:
+  platform-data:

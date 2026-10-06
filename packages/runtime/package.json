@@ -1,0 +1,8 @@
+{
+  "name": "@sharebox/runtime",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@sharebox/shared": "*"
+  }
+}

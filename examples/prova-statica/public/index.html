@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Prova statica</title>
+  <link rel="stylesheet" href="/stile.css">
+</head>
+<body>
+  <main>
+    <h1>Prova statica</h1>
+    <p>Tool fatto solo di file statici. Chi lo sta usando, secondo la piattaforma:</p>
+    <pre id="me">…</pre>
+    <p class="versione">Versione della pagina: <strong>1</strong></p>
+  </main>
+  <script>
+    fetch("/__sharebox/me")
+      .then((r) => r.json())
+      .then((me) => { document.getElementById("me").textContent = JSON.stringify(me, null, 2); });
+  </script>
+</body>
+</html>

@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bacheca</title>
+  <style>
+    :root { --bg: #fbfaf8; --card: #fff; --text: #1d1d1b; --muted: #6b6a66; --line: #e4e2dd; --accent: #1f5fbf; }
+    @media (prefers-color-scheme: dark) { :root { --bg: #161615; --card: #201f1d; --text: #ecebe8; --muted: #9c9a95; --line: #33312e; --accent: #8ab4f8; } }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+    main { max-width: 36rem; margin: 0 auto; padding: 2.5rem 1rem; }
+    h1 { margin: 0 0 .25rem; font-size: 1.6rem; }
+    .chi { color: var(--muted); margin: 0 0 1.5rem; }
+    form { display: flex; gap: .5rem; margin-bottom: 1.5rem; }
+    input { flex: 1; padding: .6rem .75rem; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--text); font: inherit; }
+    button { padding: .6rem .9rem; border: 0; border-radius: 8px; background: var(--accent); color: #fff; font: inherit; cursor: pointer; }
+    button.secondario { background: none; color: var(--muted); padding: .25rem .5rem; }
+    ul { list-style: none; padding: 0; margin: 0; }
+    li { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: .75rem 1rem; margin-bottom: .5rem; }
+    .testo { margin: 0 0 .25rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .meta { display: flex; justify-content: space-between; align-items: center; color: var(--muted); font-size: .85rem; }
+    .vuoto, .errore { color: var(--muted); }
+    .errore { color: #c0392b; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Bacheca</h1>
+    <p class="chi" id="chi">…</p>
+    <form id="nuovo">
+      <input id="testo" maxlength="500" placeholder="Scrivi un messaggio" required autocomplete="off">
+      <button>Aggiungi</button>
+    </form>
+    <p class="errore" id="errore" hidden></p>
+    <ul id="messaggi"></ul>
+  </main>
+  <script src="/__sharebox/sdk.js"></script>
+  <script>
+    const messaggi = sharebox.collection("messaggi");
+    const lista = document.getElementById("messaggi");
+    const errore = document.getElementById("errore");
+
+    function mostraErrore(e) { errore.textContent = e.message; errore.hidden = false; }
+
+    async function aggiorna() {
+      const records = await messaggi.list();
+      lista.replaceChildren();
+      if (records.length === 0) {
+        const vuoto = document.createElement("li");
+        vuoto.className = "vuoto";
+        vuoto.textContent = "Ancora nessun messaggio.";
+        lista.append(vuoto);
+      }
+      for (const r of records.reverse()) {
+        const li = document.createElement("li");
+        const testo = document.createElement("p");
+        testo.className = "testo";
+        testo.textContent = r.data.testo;
+        const meta = document.createElement("div");
+        meta.className = "meta";
+        const autore = document.createElement("span");
+        autore.textContent = `${r.owner.name || r.owner.email} · ${new Date(r.createdAt).toLocaleString("it-IT")}`;
+        meta.append(autore);
+        if (r.canEdit) {
+          const elimina = document.createElement("button");
+          elimina.className = "secondario";
+          elimina.textContent = "Elimina";
+          elimina.onclick = () => messaggi.remove(r.id).then(aggiorna, mostraErrore);
+          meta.append(elimina);
+        }
+        li.append(testo, meta);
+        lista.append(li);
+      }
+    }
+
+    document.getElementById("nuovo").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const campo = document.getElementById("testo");
+      try {
+        await messaggi.add({ testo: campo.value.trim() });
+        campo.value = "";
+        errore.hidden = true;
+        await aggiorna();
+      } catch (e) { mostraErrore(e); }
+    });
+
+    sharebox.me().then((io) => {
+      const ruolo = io.role === "manage" ? "puoi gestire tutti i messaggi" : "puoi eliminare solo i tuoi messaggi";
+      document.getElementById("chi").textContent = `Sei ${io.name || io.email}: ${ruolo}.`;
+    });
+    aggiorna().catch(mostraErrore);
+  </script>
+</body>
+</html>
