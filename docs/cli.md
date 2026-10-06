@@ -3,17 +3,15 @@
 Un solo comando, `sharebox`, per le persone (terminale) e per gli agenti (server MCP). Sorgenti in `packages/cli`.
 
 ## Installazione
-Dalla cartella del repository (serve Node 20 o più recente):
+Ogni istanza distribuisce la propria CLI (serve Node 20 o più recente):
 
 ```bash
-npm install && npm run build:cli
+npm install -g https://<istanza>/cli/sharebox.tgz
 ```
 
-```bash
-npm install -g ./packages/cli
-```
+La dashboard mostra il comando con l'indirizzo già completo (sezione *Come collegare un computer o un agente*). Per aggiornare la CLI basta ripetere il comando.
 
-L'installazione punta alla cartella del repository: dopo `npm run build:cli` il comando è già aggiornato.
+Per lo sviluppo, dalla cartella del repository: `npm install && npm run build:cli && npm install -g ./packages/cli` (il comando punta ai file del repository: dopo ogni `npm run build:cli` è già aggiornato).
 
 ## Collegare il computer
 ```bash
@@ -45,10 +43,10 @@ mio-tool/
 File nascosti e `node_modules` in `public/` vengono ignorati. Nomi dei file: lettere, cifre, `.`, `_`, `-`.
 
 ## Server MCP per gli agenti
-`sharebox mcp` parla MCP su stdio e usa lo stesso login della CLI. Per Claude Code (su Windows serve `cmd /c` davanti ai comandi installati con npm):
+`sharebox mcp` parla MCP su stdio e usa lo stesso login della CLI. Per Claude Code (su Windows: `-- cmd /c sharebox mcp`, perché i comandi installati con npm sono script `.cmd`):
 
 ```bash
-claude mcp add --scope user sharebox -- cmd /c sharebox mcp
+claude mcp add --scope user sharebox -- sharebox mcp
 ```
 
 Strumenti: `sharebox_guida`, `sharebox_crea_progetto`, `sharebox_pubblica`, `sharebox_elenco`, `sharebox_dettagli`, `sharebox_condividi`, `sharebox_revoca`. Non c'è uno strumento per eliminare: cancella i dati, quindi resta solo nella CLI con conferma. Le azioni fatte via MCP finiscono nel registro delle attività con canale `mcp`.

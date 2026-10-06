@@ -18,7 +18,7 @@ const dir = join(process.cwd(), "packages", "platform", "dashboard");
 const read = (file: string) => readFileSync(join(dir, file), "utf8");
 
 const config: Config = {
-  toolsDomain: "guido-sbx.duckdns.org",
+  toolsDomain: "esempio.duckdns.org",
   platformDomain: "localhost",
   googleClientId: "anteprima",
   googleClientSecret: "anteprima",
@@ -88,7 +88,9 @@ createServer(
     const url = new URL(request.url);
     if (url.pathname === "/dev-login") {
       const session = store.createSession("platform", guido.sub, null, DAY);
-      return new Response(null, { status: 302, headers: { location: "/app", "set-cookie": `${PLATFORM_SESSION_COOKIE}=${session}; Path=/; Secure; HttpOnly; SameSite=Lax` } });
+      // ?next=/app%23/tool/<id> apre direttamente una pagina (utile per gli screenshot).
+      const next = url.searchParams.get("next")?.startsWith("/app") ? url.searchParams.get("next")! : "/app";
+      return new Response(null, { status: 302, headers: { location: next, "set-cookie": `${PLATFORM_SESSION_COOKIE}=${session}; Path=/; Secure; HttpOnly; SameSite=Lax` } });
     }
     // I file della dashboard si rileggono a ogni richiesta, così le modifiche si vedono subito.
     if (url.pathname.startsWith("/app")) {
