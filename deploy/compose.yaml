@@ -30,7 +30,9 @@ services:
       HOSTING_DESCRIPTION: ${HOSTING_DESCRIPTION:?manca HOSTING_DESCRIPTION in .env}
       OFFSITE_BACKUP: ${OFFSITE_BACKUP:-nessuno}
     volumes:
-      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # La cartella, non il solo file: git sostituisce il file a ogni aggiornamento e un montaggio
+      # di file singolo continuerebbe a vedere quello vecchio, anche dopo caddy reload.
+      - ./caddy:/etc/caddy:ro
       - ./site:/srv/site:ro
       - caddy-data:/data
     networks: [edge]
