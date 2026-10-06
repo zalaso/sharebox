@@ -138,6 +138,13 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 }
 #toast.error { background: var(--danger); color: #fff; }
 
+.connect { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: .75rem 1rem; margin-bottom: .75rem; }
+.connect summary { cursor: pointer; font-weight: 600; }
+.connect ol { margin: .75rem 0 0; padding-left: 1.2rem; }
+.connect li { margin-bottom: .75rem; }
+.cmd { display: flex; gap: .5rem; align-items: center; margin-top: .25rem; }
+.cmd code { flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap; padding: .4rem .55rem; }
+
 @media (max-width: 560px) {
   .row { grid-template-columns: 1fr; }
   .row-side { grid-row: auto; grid-column: 1; justify-self: start; }

@@ -20,7 +20,10 @@ services:
     environment:
       TOOLS_DOMAIN: ${TOOLS_DOMAIN:?manca TOOLS_DOMAIN in .env}
       PLATFORM_DOMAIN: ${PLATFORM_DOMAIN:?manca PLATFORM_DOMAIN in .env}
-      DUCKDNS_TOKEN: ${DUCKDNS_TOKEN:?manca DUCKDNS_TOKEN in .env}
+      # Certificato wildcard dei tool: duckdns (con DUCKDNS_TOKEN) o cloudflare (con CLOUDFLARE_API_TOKEN).
+      DNS_PROVIDER: ${DNS_PROVIDER:-duckdns}
+      DUCKDNS_TOKEN: ${DUCKDNS_TOKEN:-}
+      CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN:-}
       # Per le pagine home e privacy (deploy/site, modelli di Caddy).
       OPERATOR_NAME: ${OPERATOR_NAME:?manca OPERATOR_NAME in .env}
       OPERATOR_EMAIL: ${OPERATOR_EMAIL:?manca OPERATOR_EMAIL in .env}

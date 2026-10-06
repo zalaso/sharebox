@@ -1,0 +1,46 @@
+# Controlli automatici a ogni push e pull request: tipi, test, build e script di installazione.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  scripts:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: shellcheck
+        run: shellcheck -S warning deploy/install.sh deploy/aggiorna.sh deploy/backup/backup.sh deploy/backup/configura-drive.sh deploy/checks/isolamento.sh
+      - name: docker compose config
+        run: |
+          # Valori fittizi: servono solo a validare e costruire, non ad avviare.
+          sed -E -e 's/^([A-Z_]+)=$/\1=ci/' -e 's/^PUBLIC_IP=.*/PUBLIC_IP=127.0.0.1/' deploy/.env.example > deploy/.env
+          docker compose -f deploy/compose.yaml config -q
+
+  images:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build delle immagini
+        run: |
+          # Valori fittizi: servono solo a validare e costruire, non ad avviare.
+          sed -E -e 's/^([A-Z_]+)=$/\1=ci/' -e 's/^PUBLIC_IP=.*/PUBLIC_IP=127.0.0.1/' deploy/.env.example > deploy/.env
+          cd deploy && docker compose --profile build build

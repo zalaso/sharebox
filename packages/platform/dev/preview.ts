@@ -30,6 +30,7 @@ const config: Config = {
   orchestratorToken: "",
   runtimeEntryPath: "",
   dashboardDir: dir,
+  cliTarballPath: "",
 };
 
 const store = new Store(openDatabase(":memory:"));

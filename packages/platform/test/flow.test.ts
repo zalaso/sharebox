@@ -341,3 +341,17 @@ describe("dashboard", () => {
     expect((await app()(get(`${PLATFORM}/app/altro.js`))).status).toBe(404);
   });
 });
+
+describe("distribuzione della CLI", () => {
+  it("serve il pacchetto npm della CLI a chiunque, se presente", async () => {
+    const tarball = new Uint8Array([31, 139, 8, 0]);
+    const withCli = createPlatformApp({ config: testConfig(), store, cliTarball: tarball });
+    const res = await withCli(get(`${PLATFORM}/cli/sharebox.tgz`));
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("application/gzip");
+    expect(new Uint8Array(await res.arrayBuffer())).toEqual(tarball);
+
+    const without = createPlatformApp({ config: testConfig(), store });
+    expect((await without(get(`${PLATFORM}/cli/sharebox.tgz`))).status).toBe(404);
+  });
+});

@@ -26,6 +26,8 @@ export interface PlatformDeps {
   now?: () => number;
   /** File della dashboard (packages/platform/dashboard), serviti su /app. */
   dashboard?: DashboardFiles;
+  /** Pacchetto npm della CLI, servito su /cli/sharebox.tgz. */
+  cliTarball?: Uint8Array;
 }
 
 // La dashboard non ha script o stili inline e non carica nulla da altri domini.
@@ -175,6 +177,12 @@ export function createPlatformApp(deps: PlatformDeps): (request: Request) => Pro
 
   return async (request) => {
     const url = new URL(request.url);
+    if (url.pathname === "/cli/sharebox.tgz" && request.method === "GET") {
+      if (!deps.cliTarball) return page(404, "CLI non disponibile su questa istanza", "");
+      return new Response(deps.cliTarball, {
+        headers: { "content-type": "application/gzip", "content-disposition": "attachment; filename=sharebox.tgz", "cache-control": "no-cache" },
+      });
+    }
     if ((url.pathname === "/app" || url.pathname.startsWith("/app/")) && request.method === "GET") return dashboard(request, url);
     if (url.pathname === "/auth/cli" && request.method === "POST") {
       return cliLogin(request, url, new URLSearchParams(await request.text()));

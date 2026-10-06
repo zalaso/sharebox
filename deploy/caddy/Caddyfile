@@ -1,8 +1,20 @@
-*.{$TOOLS_DOMAIN} {
+# Certificato wildcard dei tool con la verifica DNS-01: provider scelto con DNS_PROVIDER (duckdns o cloudflare).
+(tls-duckdns) {
 	tls {
 		dns duckdns {$DUCKDNS_TOKEN}
 		resolvers 1.1.1.1 8.8.8.8
 	}
+}
+
+(tls-cloudflare) {
+	tls {
+		dns cloudflare {$CLOUDFLARE_API_TOKEN}
+		resolvers 1.1.1.1 8.8.8.8
+	}
+}
+
+*.{$TOOLS_DOMAIN} {
+	import tls-{$DNS_PROVIDER}
 	encode zstd gzip
 	reverse_proxy platform:8080
 }
@@ -14,6 +26,9 @@
 		reverse_proxy platform:8080
 	}
 	handle /app* {
+		reverse_proxy platform:8080
+	}
+	handle /cli/* {
 		reverse_proxy platform:8080
 	}
 	handle /api/* {

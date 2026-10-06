@@ -15,6 +15,7 @@ export function testConfig(): Config {
     orchestratorToken: "token-orchestratore",
     runtimeEntryPath: "",
     dashboardDir: "",
+    cliTarballPath: "",
   };
 }
 

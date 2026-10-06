@@ -5,9 +5,15 @@
   "private": true,
   "description": "Pubblica e condividi tool su ShareBox, da terminale o da un agente (MCP)",
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "bin": {
     "sharebox": "dist/sharebox.mjs"
   },
+  "files": [
+    "dist"
+  ],
   "dependencies": {
     "esbuild": "^0.28.2"
   },

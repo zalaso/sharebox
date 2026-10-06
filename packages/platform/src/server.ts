@@ -1,5 +1,5 @@
 // Processo unico della piattaforma: login e API su PLATFORM_DOMAIN, gateway dei tool su *.TOOLS_DOMAIN (ADR 0007).
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { createServer } from "node:http";
 import { createGateway } from "@sharebox/gateway";
@@ -30,7 +30,12 @@ if (process.argv[2] === "admin") {
   setInterval(() => store.purgeExpired(), 60 * 60 * 1000).unref();
 
   const read = (file: string) => readFileSync(join(config.dashboardDir, file), "utf8");
-  const platform = createPlatformApp({ config, store, dashboard: { html: read("index.html"), js: read("app.js"), css: read("app.css") } });
+  const platform = createPlatformApp({
+    config,
+    store,
+    dashboard: { html: read("index.html"), js: read("app.js"), css: read("app.css") },
+    cliTarball: existsSync(config.cliTarballPath) ? readFileSync(config.cliTarballPath) : undefined,
+  });
   const api = createApi({ config, store, orchestrator, runtimeEntry: readFileSync(config.runtimeEntryPath, "utf8") });
   const gateway = createGateway({
     toolsDomain: config.toolsDomain,

@@ -1,4 +1,4 @@
 FROM caddy:2
-# Modulo DuckDNS per il certificato wildcard dei tool, scaricato dal servizio di build ufficiale di Caddy.
-# Se il servizio non risponde, alternativa: immagine caddy:2-builder con `xcaddy build --with github.com/caddy-dns/duckdns`.
-RUN caddy add-package github.com/caddy-dns/duckdns
+# Moduli DNS per il certificato wildcard dei tool (DNS_PROVIDER in deploy/.env), scaricati dal servizio
+# di build ufficiale di Caddy. In alternativa: immagine caddy:2-builder con `xcaddy build --with ...`.
+RUN caddy add-package github.com/caddy-dns/duckdns github.com/caddy-dns/cloudflare

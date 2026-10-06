@@ -16,6 +16,8 @@ export interface Config {
   runtimeEntryPath: string;
   /** File della dashboard (copiati da packages/platform/dashboard). */
   dashboardDir: string;
+  /** Pacchetto npm della CLI, servito su /cli/sharebox.tgz (facoltativo). */
+  cliTarballPath: string;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -38,6 +40,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     orchestratorToken: required(env, "ORCHESTRATOR_TOKEN"),
     runtimeEntryPath: env.RUNTIME_ENTRY_PATH ?? "/app/runtime-entry.js",
     dashboardDir: env.DASHBOARD_DIR ?? "/app/dashboard",
+    cliTarballPath: env.CLI_TARBALL_PATH ?? "/app/cli/sharebox.tgz",
   };
 }
 

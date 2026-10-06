@@ -106,6 +106,39 @@ function containerBadge(status) {
 
 // ---------- home ----------
 
+/** Comandi per collegare un computer o un agente a questa istanza (l'indirizzo è quello della pagina). */
+function connectHelp(open) {
+  const host = location.host;
+  const steps = [
+    ["Installa la CLI (serve Node 20 o più recente)", "npm install -g https://" + host + "/cli/sharebox.tgz"],
+    ["Collega il computer a questa ShareBox: si apre il browser per confermare", "sharebox login " + host],
+    ["Collega Claude Code agli strumenti di ShareBox (su Windows: … -- cmd /c sharebox mcp)", "claude mcp add --scope user sharebox -- sharebox mcp"],
+  ];
+  return h(
+    "details",
+    { class: "connect", open },
+    h("summary", {}, "Come collegare un computer o un agente"),
+    h(
+      "ol",
+      {},
+      steps.map(([label, command]) =>
+        h(
+          "li",
+          {},
+          h("div", { class: "small muted" }, label),
+          h(
+            "div",
+            { class: "cmd" },
+            h("code", {}, command),
+            h("button", { class: "secondary", onclick: () => attempt(() => navigator.clipboard.writeText(command), "Comando copiato") }, "Copia"),
+          ),
+        ),
+      ),
+    ),
+    h("p", { class: "hint" }, "Poi chiedi all'agente, per esempio: «creami un tracker delle ferie del team e pubblicalo su ShareBox»."),
+  );
+}
+
 async function renderHome() {
   const [{ tools }, { tokens }] = await Promise.all([api("GET", "/api/tools?access=all"), api("GET", "/api/tokens")]);
   const mine = tools.filter((t) => t.role === "manage");
@@ -128,11 +161,9 @@ async function renderHome() {
       ? h(
           "p",
           { class: "small" },
-          "Chiedi a un agente (Claude Code con ShareBox collegato) di costruire e pubblicare un tool, oppure da terminale: ",
-          h("code", {}, "sharebox login"),
-          " poi ",
+          "Chiedi a un agente collegato a ShareBox di costruire e pubblicare un tool, oppure da terminale ",
           h("code", {}, "sharebox publish cartella"),
-          ".",
+          ". Per collegare il tuo computer vedi sotto.",
         )
       : null,
   );
@@ -168,6 +199,7 @@ async function renderHome() {
       "section",
       {},
       h("div", { class: "section-head" }, h("h2", {}, "Computer collegati")),
+      me.creator ? connectHelp(tokens.length === 0) : null,
       tokens.length
         ? h(
             "div",

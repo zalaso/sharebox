@@ -16,6 +16,8 @@ fail() { printf '\nErrore: %s\n' "$*" >&2; exit 1; }
 # shellcheck disable=SC1091
 . /etc/os-release
 [ "${ID:-}" = "ubuntu" ] || warn "provato solo su Ubuntu 24.04 (qui: ${PRETTY_NAME:-sconosciuto})"
+MEM_MB=$(awk '/MemTotal/ { print int($2 / 1024) }' /proc/meminfo)
+[ "$MEM_MB" -ge 1800 ] || warn "il server ha ${MEM_MB} MB di RAM: ne servono almeno 2 GB (ogni tool acceso ne usa circa 25 MB)"
 
 say "1/6 Docker e gVisor"
 export DEBIAN_FRONTEND=noninteractive
@@ -63,13 +65,37 @@ else
     check "$2" "$answer"
     printf -v "$1" '%s' "$answer"
   }
+  domain() { [[ "$2" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$ ]] || fail "$1: \"$2\" non è un dominio valido (es. sharebox.example.com)"; }
   echo "Prima di continuare servono: il dominio della piattaforma con un record A verso questo server,"
-  echo "un sottodominio DuckDNS con il suo token e un client OAuth di Google (docs/installazione.md)."
+  echo "un dominio per i tool (DuckDNS gratuito, oppure un dominio su Cloudflare) e un client OAuth di Google."
+  echo "Guida: docs/installazione.md (italiano) o docs/install.md (English)."
   DETECTED_IP=$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for (i = 1; i < NF; i++) if ($i == "src") print $(i + 1)}')
   ask PUBLIC_IP "IP pubblico del server" "$DETECTED_IP"
   ask PLATFORM_DOMAIN "Dominio della piattaforma, es. sharebox.example.com"
-  ask TOOLS_DOMAIN "Sottodominio DuckDNS per i tool, es. nome.duckdns.org"
-  secret DUCKDNS_TOKEN "Token DuckDNS"
+  PLATFORM_DOMAIN=${PLATFORM_DOMAIN,,}
+  domain "Dominio della piattaforma" "$PLATFORM_DOMAIN"
+  ask DNS_PROVIDER "Certificato dei tool: duckdns (sottodominio gratuito) o cloudflare (dominio tuo su Cloudflare)" "duckdns"
+  DUCKDNS_TOKEN=""
+  CLOUDFLARE_API_TOKEN=""
+  case "${DNS_PROVIDER,,}" in
+    duckdns)
+      DNS_PROVIDER=duckdns
+      ask TOOLS_DOMAIN "Sottodominio DuckDNS per i tool, es. nome.duckdns.org"
+      secret DUCKDNS_TOKEN "Token DuckDNS"
+      ;;
+    cloudflare)
+      DNS_PROVIDER=cloudflare
+      ask TOOLS_DOMAIN "Dominio dei tool su Cloudflare (record A *.dominio verso il server), es. strumenti-esempio.com"
+      secret CLOUDFLARE_API_TOKEN "Token API Cloudflare (permesso Zone > DNS > Edit)"
+      ;;
+    *) fail "provider non supportato: ${DNS_PROVIDER} (duckdns o cloudflare)" ;;
+  esac
+  TOOLS_DOMAIN=${TOOLS_DOMAIN,,}
+  domain "Dominio dei tool" "$TOOLS_DOMAIN"
+  [ "$TOOLS_DOMAIN" != "$PLATFORM_DOMAIN" ] || fail "il dominio dei tool deve essere diverso da quello della piattaforma"
+  # Stesso dominio registrato (es. app.esempio.it e tool.esempio.it): funziona, ma i tool sarebbero "stesso sito" della piattaforma.
+  [ "$(echo "$TOOLS_DOMAIN" | awk -F. '{ print $(NF-1)"."$NF }')" != "$(echo "$PLATFORM_DOMAIN" | awk -F. '{ print $(NF-1)"."$NF }')" ] ||
+    warn "tool e piattaforma sotto lo stesso dominio: meglio un dominio separato per i tool (docs/adr/0002-domini-separati.md)"
   ask GOOGLE_CLIENT_ID "Google OAuth: ID client"
   secret GOOGLE_CLIENT_SECRET "Google OAuth: client secret"
   ask CREATOR_EMAILS "Email di chi può pubblicare tool, separate da virgola"
@@ -81,9 +107,11 @@ else
     cat >"$ENV_FILE" <<EOF
 # Creato da deploy/install.sh il $(date -I). Valori: deploy/.env.example.
 PUBLIC_IP="$PUBLIC_IP"
-PLATFORM_DOMAIN="${PLATFORM_DOMAIN,,}"
-TOOLS_DOMAIN="${TOOLS_DOMAIN,,}"
+PLATFORM_DOMAIN="$PLATFORM_DOMAIN"
+TOOLS_DOMAIN="$TOOLS_DOMAIN"
+DNS_PROVIDER="$DNS_PROVIDER"
 DUCKDNS_TOKEN="$DUCKDNS_TOKEN"
+CLOUDFLARE_API_TOKEN="$CLOUDFLARE_API_TOKEN"
 GOOGLE_CLIENT_ID="$GOOGLE_CLIENT_ID"
 GOOGLE_CLIENT_SECRET="$GOOGLE_CLIENT_SECRET"
 CREATOR_EMAILS="${CREATOR_EMAILS,,}"
