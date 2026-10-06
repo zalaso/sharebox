@@ -1,4 +1,5 @@
 // Client dell'API della piattaforma (packages/platform/src/api.ts).
+import { lang, m } from "./i18n";
 
 export type Role = "use" | "manage";
 
@@ -82,15 +83,17 @@ export class ShareboxClient {
         headers: {
           authorization: `Bearer ${this.token}`,
           "x-sharebox-client": this.channel,
+          // Gli errori della piattaforma arrivano nella lingua della CLI.
+          "accept-language": lang(),
           ...(body ? { "content-type": "application/json" } : {}),
         },
         body: body ? JSON.stringify(body) : undefined,
       });
     } catch (error) {
-      throw new ShareboxError(`ShareBox non raggiungibile (${this.baseUrl}): ${error instanceof Error ? error.message : error}`, 0);
+      throw new ShareboxError(m("unreachable", { url: this.baseUrl, error: error instanceof Error ? error.message : String(error) }), 0);
     }
     const data = (await response.json().catch(() => ({}))) as { error?: string };
-    if (!response.ok) throw new ShareboxError(data.error ?? `Errore HTTP ${response.status}`, response.status);
+    if (!response.ok) throw new ShareboxError(data.error ?? m("http_error", { status: response.status }), response.status);
     return data as T;
   }
 }

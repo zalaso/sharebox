@@ -74,7 +74,7 @@ const orchestrator: Orchestrator = {
         ? { state: "missing", restarts: 0, startedAt: null, oomKilled: false }
         : { state: "running", restarts: 1, startedAt: new Date(now - 2 * DAY).toISOString(), oomKilled: false },
   logs: async () => [
-    { stream: "stdout", time: new Date(now - 3600_000).toISOString(), text: "workerd: in ascolto su *:8080" },
+    { stream: "stdout", time: new Date(now - 3600_000).toISOString(), text: "workerd: listening on *:8080" },
     { stream: "stderr", time: new Date(now - 1800_000).toISOString(), text: "TypeError: Cannot read properties of undefined (reading 'dal')" },
     { stream: "stderr", time: new Date(now - 1799_000).toISOString(), text: "    at fetch (worker.js:12:31)" },
   ],

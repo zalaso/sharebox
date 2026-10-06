@@ -165,11 +165,15 @@ describe("permessi", () => {
     expect(upstreamCalls).toHaveLength(1);
   });
 
-  it("un tool creato ma mai pubblicato mostra una pagina di attesa", async () => {
+  it("un tool creato ma mai pubblicato mostra una pagina di attesa, nella lingua del browser", async () => {
     store.createTool({ id: "t-nuovo", slug: "nuovo", name: "Nuovo", ownerEmail: guido.email });
     const res = await gateway(get("https://nuovo.sbx.test/"));
     expect(res.status).toBe(503);
-    expect(await res.text()).toContain("non ancora pubblicato");
+    expect(await res.text()).toContain("not been published yet");
+    const italiano = await gateway(new Request("https://nuovo.sbx.test/", { headers: { "accept-language": "it-IT,it;q=0.9,en;q=0.8" } }));
+    const html = await italiano.text();
+    expect(html).toContain('<html lang="it">');
+    expect(html).toContain("non è ancora stato pubblicato");
   });
 
   it("un tool sospeso non è raggiungibile nemmeno dal proprietario", async () => {

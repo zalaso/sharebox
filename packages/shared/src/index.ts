@@ -1,6 +1,16 @@
 // Contratto tra gateway, runtime e codice dei tool. Vedi docs/architettura.md.
 
-export { BUNDLE_LIMITS, PLATFORM_DIR, bundleProblem, pathProblem } from "./bundle";
+export {
+  BUNDLE_LIMITS,
+  PLATFORM_DIR,
+  bundleProblem,
+  describeBundleProblem,
+  describePathProblem,
+  pathProblem,
+  type BundleProblem,
+  type PathProblem,
+} from "./bundle";
+export { format, pickLang, type Lang } from "./i18n";
 
 /** Header con cui il gateway comunica al tool chi lo sta usando. */
 export const IDENTITY_HEADERS = {

@@ -2,6 +2,8 @@
 // Regole (applicate qui, lato server): tutti quelli che hanno accesso al tool leggono tutti i record;
 // con "può usare" si modificano ed eliminano solo i propri, con "può gestire" tutti.
 
+import type { ErrorCode } from "./messages";
+
 export interface Sql {
   exec(query: string, ...bindings: unknown[]): { toArray(): Record<string, unknown>[] };
 }
@@ -22,7 +24,7 @@ export interface RecordView {
   canEdit: boolean;
 }
 
-export type Result<T> = { ok: true; value: T } | { ok: false; status: number; error: string };
+export type Result<T> = { ok: true; value: T } | { ok: false; status: number; error: ErrorCode };
 
 export const COLLECTION_LIMITS = {
   maxRecordBytes: 64 * 1024,
@@ -112,20 +114,20 @@ export class Collections {
   private editable(collection: string, id: string, actor: Actor): Result<RecordView> {
     if (!NAME.test(collection)) return invalidName();
     const record = this.get(collection, id, actor);
-    if (!record) return { ok: false, status: 404, error: "Record non trovato" };
-    if (!record.canEdit) return { ok: false, status: 403, error: "Puoi modificare solo i record che hai creato tu" };
+    if (!record) return { ok: false, status: 404, error: "record_not_found" };
+    if (!record.canEdit) return { ok: false, status: 403, error: "not_yours" };
     return { ok: true, value: record };
   }
 
-  private writeProblem(data: unknown): { ok: false; status: number; error: string } | null {
+  private writeProblem(data: unknown): { ok: false; status: number; error: ErrorCode } | null {
     if (typeof data !== "object" || data === null || Array.isArray(data)) {
-      return { ok: false, status: 400, error: "I dati di un record devono essere un oggetto JSON" };
+      return { ok: false, status: 400, error: "not_object" };
     }
     if (new TextEncoder().encode(JSON.stringify(data)).byteLength > COLLECTION_LIMITS.maxRecordBytes) {
-      return { ok: false, status: 413, error: `Record troppo grande (massimo ${COLLECTION_LIMITS.maxRecordBytes / 1024} KB)` };
+      return { ok: false, status: 413, error: "record_too_big" };
     }
     if (this.databaseSize() > COLLECTION_LIMITS.maxDatabaseBytes) {
-      return { ok: false, status: 507, error: "Spazio dati del tool esaurito" };
+      return { ok: false, status: 507, error: "storage_full" };
     }
     return null;
   }
@@ -143,6 +145,6 @@ function view(row: Record<string, unknown>, actor: Actor): RecordView {
   };
 }
 
-function invalidName(): { ok: false; status: number; error: string } {
-  return { ok: false, status: 400, error: "Nome della collezione non valido (lettere, cifre, - e _, massimo 40)" };
+function invalidName(): { ok: false; status: number; error: ErrorCode } {
+  return { ok: false, status: 400, error: "invalid_collection" };
 }

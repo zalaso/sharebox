@@ -83,7 +83,7 @@ Guida passo per passo, compresi DNS e Google: **[docs/installazione.md](docs/ins
 
 ## Costruire un tool
 
-Un agente collegato via MCP legge la guida inclusa (`sharebox_guida`) e sa cosa fare. A mano:
+Un agente collegato via MCP legge la guida inclusa (`sharebox_guide`) e sa cosa fare. A mano:
 
 ```bash
 sharebox init ferie --name "Ferie del team"   # modello di partenza con un esempio di SDK
@@ -114,7 +114,7 @@ Con *può usare* si modificano solo i propri record, con *può gestire* tutti: l
 Progetto giovane, in uso sull'istanza privata dell'autore. Funziona oggi: pubblicazione, condivisione, dati, CLI, MCP, dashboard, backup, installatore self-hosted, CI.
 
 Limiti noti e prossimi passi:
-- **L'interfaccia (dashboard, CLI, pagine) è solo in italiano**: le traduzioni sono benvenute.
+- L'interfaccia (dashboard, pagine, CLI, installatore) è in italiano e in inglese, scelta in base alla lingua del browser o del sistema. Altre lingue sono benvenute: i dizionari sono in `packages/platform/src/messages.ts`, `packages/platform/dashboard/app.js`, `packages/runtime/src/messages.ts` e `packages/cli/src/i18n.ts`.
 - Un solo server: circa 25 tool accesi insieme con 2 GB di RAM; è previsto lo spegnimento dei tool inattivi.
 - I tool non possono ancora chiamare API esterne (niente internet, niente segreti): previsto, tramite un proxy in uscita.
 - Login solo con Google; pubblicano solo le email elencate in `CREATOR_EMAILS`.

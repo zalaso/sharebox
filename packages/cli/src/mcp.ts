@@ -1,8 +1,10 @@
 // Server MCP su stdio (`sharebox mcp`): JSON-RPC 2.0, un messaggio per riga.
 // Non c'è uno strumento per eliminare i tool: cancella i dati, quindi resta solo nella CLI con conferma.
+// Nomi e descrizioni degli strumenti sono in inglese (li legge l'agente); i risultati seguono la lingua della CLI.
 import { createInterface } from "node:readline";
 import type { ShareboxClient } from "./client";
-import { GUIDE, MCP_INSTRUCTIONS } from "./guide";
+import { MCP_INSTRUCTIONS, guide } from "./guide";
+import { lang, m } from "./i18n";
 import { describeGrant, describeRole, formatBytes, parseRole, parseTarget, publish, resolveTool } from "./operations";
 import { initProject } from "./template";
 
@@ -13,78 +15,91 @@ interface JsonRpcMessage {
   params?: Record<string, unknown>;
 }
 
-const TOOL_REF = "Il tool: percorso assoluto della sua cartella, oppure id, indirizzo o nome.";
+const TOOL_REF = "The tool: absolute path of its folder, or its id, address or name.";
 
 export const TOOLS = [
   {
-    name: "sharebox_guida",
-    description: "Istruzioni per costruire un tool per ShareBox: struttura, SDK per identità e dati, worker opzionale, limiti. Da leggere prima di scrivere il tool.",
+    name: "sharebox_guide",
+    description: "How to build a tool for ShareBox: folder layout, SDK for identity and data, optional worker, limits. Read it before writing the tool.",
     inputSchema: { type: "object", properties: {} },
   },
   {
-    name: "sharebox_crea_progetto",
-    description: "Crea una cartella di partenza per un tool nuovo (sharebox.json e public/index.html con un esempio che usa l'SDK).",
+    name: "sharebox_create_project",
+    description: "Create a starter folder for a new tool (sharebox.json and a public/index.html example that uses the SDK).",
     inputSchema: {
       type: "object",
       properties: {
-        cartella: { type: "string", description: "Percorso assoluto di una cartella nuova o vuota." },
-        nome: { type: "string", description: "Nome del tool, visibile agli utenti." },
+        folder: { type: "string", description: "Absolute path of a new or empty folder." },
+        name: { type: "string", description: "Name of the tool, shown to its users." },
       },
-      required: ["cartella", "nome"],
+      required: ["folder", "name"],
     },
   },
   {
-    name: "sharebox_pubblica",
+    name: "sharebox_publish",
     description:
-      "Pubblica la cartella di un tool. La prima volta crea il tool e un indirizzo HTTPS proprio; le volte successive aggiorna lo stesso tool mantenendo indirizzo e dati. Il tool nasce privato.",
+      "Publish a tool's folder. The first time it creates the tool with its own HTTPS address; later it updates the same tool, keeping address and data. New tools are private.",
     inputSchema: {
       type: "object",
       properties: {
-        cartella: { type: "string", description: "Percorso assoluto della cartella del tool." },
-        nome: { type: "string", description: "Nome del tool, solo alla prima pubblicazione (altrimenti quello di sharebox.json)." },
+        folder: { type: "string", description: "Absolute path of the tool's folder." },
+        name: { type: "string", description: "Name of the tool, only on the first publish (otherwise the one in sharebox.json)." },
       },
-      required: ["cartella"],
+      required: ["folder"],
     },
   },
   {
-    name: "sharebox_elenco",
-    description: "Elenca i tool che l'utente può gestire, con indirizzo e versione.",
+    name: "sharebox_list",
+    description: "List the tools the user can manage, with address and version.",
     inputSchema: { type: "object", properties: {} },
   },
   {
-    name: "sharebox_dettagli",
-    description: "Dettagli di un tool: indirizzo, versione e con chi è condiviso.",
+    name: "sharebox_info",
+    description: "Details of a tool: address, version and who it is shared with.",
     inputSchema: { type: "object", properties: { tool: { type: "string", description: TOOL_REF } }, required: ["tool"] },
   },
   {
-    name: "sharebox_condividi",
-    description: "Condivide un tool (o cambia il ruolo di una condivisione esistente). Ha effetto immediato.",
+    name: "sharebox_share",
+    description: "Share a tool (or change the role of an existing share). Takes effect immediately.",
     inputSchema: {
       type: "object",
       properties: {
         tool: { type: "string", description: TOOL_REF },
-        con: {
+        with: {
           type: "string",
-          description: 'Un\'email ("anna@azienda.com"), un dominio ("@azienda.com": tutti gli account Google Workspace di quel dominio) oppure "chiunque" (chiunque abbia il link, con login Google).',
+          description:
+            'An email ("anna@company.com"), a domain ("@company.com": every Google Workspace account of that domain) or "anyone" (anyone with the link, still signing in with Google).',
         },
-        ruolo: { type: "string", enum: ["use", "manage"], description: '"use" = può usare (predefinito); "manage" = può anche ripubblicare e condividere.' },
+        role: { type: "string", enum: ["use", "manage"], description: '"use" = can use (default); "manage" = can also republish and share.' },
       },
-      required: ["tool", "con"],
+      required: ["tool", "with"],
     },
   },
   {
-    name: "sharebox_revoca",
-    description: "Toglie una condivisione. Ha effetto immediato.",
+    name: "sharebox_unshare",
+    description: "Remove a share. Takes effect immediately.",
     inputSchema: {
       type: "object",
       properties: {
         tool: { type: "string", description: TOOL_REF },
-        con: { type: "string", description: 'L\'email, "@dominio" oppure "chiunque", come indicato nella condivisione.' },
+        with: { type: "string", description: 'The email, "@domain" or "anyone", as in the share.' },
       },
-      required: ["tool", "con"],
+      required: ["tool", "with"],
     },
   },
 ] as const;
+
+// Nomi della prima versione, in italiano: restano accettati per chi ha già configurato un agente.
+const LEGACY_TOOLS: Record<string, string> = {
+  sharebox_guida: "sharebox_guide",
+  sharebox_crea_progetto: "sharebox_create_project",
+  sharebox_pubblica: "sharebox_publish",
+  sharebox_elenco: "sharebox_list",
+  sharebox_dettagli: "sharebox_info",
+  sharebox_condividi: "sharebox_share",
+  sharebox_revoca: "sharebox_unshare",
+};
+const LEGACY_ARGS: Record<string, string> = { cartella: "folder", nome: "name", con: "with", ruolo: "role" };
 
 export interface McpDeps {
   /** Client autenticato; lancia un errore comprensibile se manca il login. */
@@ -93,59 +108,72 @@ export interface McpDeps {
 }
 
 export function createMcpHandler(deps: McpDeps) {
-  async function callTool(name: string, args: Record<string, unknown>): Promise<string> {
+  async function callTool(requested: string, rawArgs: Record<string, unknown>): Promise<string> {
+    const name = LEGACY_TOOLS[requested] ?? requested;
+    const args: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(rawArgs)) args[LEGACY_ARGS[key] ?? key] = value;
     const text = (key: string) => {
       const value = args[key];
-      if (typeof value !== "string" || !value.trim()) throw new Error(`Parametro mancante: ${key}`);
+      if (typeof value !== "string" || !value.trim()) throw new Error(m("missing_param", { name: key }));
       return value.trim();
     };
     const optional = (key: string) => (typeof args[key] === "string" && (args[key] as string).trim() ? (args[key] as string).trim() : undefined);
 
     switch (name) {
-      case "sharebox_guida":
-        return GUIDE;
-      case "sharebox_crea_progetto": {
-        const folder = await initProject(text("cartella"), text("nome"));
-        return `Creata ${folder}. Modifica public/index.html per costruire il tool, poi pubblicalo con sharebox_pubblica.`;
+      case "sharebox_guide":
+        return guide(lang());
+      case "sharebox_create_project": {
+        const folder = await initProject(text("folder"), text("name"));
+        return m("mcp_project_created", { folder });
       }
-      case "sharebox_pubblica": {
+      case "sharebox_publish": {
         const client = await deps.client();
-        const r = await publish(client, text("cartella"), { name: optional("nome") });
+        const r = await publish(client, text("folder"), { name: optional("name") });
         const parts = [
-          `${r.created ? "Tool creato e pubblicato" : "Tool aggiornato"}: ${r.tool.name}`,
-          `Indirizzo: ${r.tool.url}`,
-          `Versione ${r.tool.version}: ${r.files} file (${formatBytes(r.bytes)})${r.worker ? " + worker" : ""}`,
+          m(r.created ? "mcp_created" : "mcp_updated", { name: r.tool.name }),
+          m("mcp_address", { url: r.tool.url }),
+          m("mcp_version", { version: r.tool.version ?? "-", files: r.files, size: formatBytes(r.bytes), worker: r.worker ? " + worker" : "" }),
         ];
-        if (r.created) parts.push("Il tool è privato: per ora lo vede solo chi l'ha pubblicato. Per condividerlo usa sharebox_condividi.");
+        if (r.created) parts.push(m("mcp_private"));
         return parts.join("\n");
       }
-      case "sharebox_elenco": {
+      case "sharebox_list": {
         const tools = await (await deps.client()).listTools();
-        if (tools.length === 0) return "Nessun tool.";
-        return tools.map((t) => `${t.name} — ${t.url} (versione ${t.version ?? "mai pubblicato"}${t.status === "suspended" ? ", sospeso" : ""}, id ${t.id})`).join("\n");
+        if (tools.length === 0) return m("no_tools");
+        return tools
+          .map((t) =>
+            m("mcp_list_line", {
+              name: t.name,
+              url: t.url,
+              version: t.version ?? m("never_published"),
+              suspended: t.status === "suspended" ? m("mcp_suspended") : "",
+              id: t.id,
+            }),
+          )
+          .join("\n");
       }
-      case "sharebox_dettagli": {
+      case "sharebox_info": {
         const client = await deps.client();
         return describeTool(await client.getTool(await resolveTool(client, text("tool"))));
       }
-      case "sharebox_condividi": {
+      case "sharebox_share": {
         // Prima i parametri, poi le chiamate: gli errori devono indicare cosa manca davvero.
-        const target = parseTarget(text("con"));
-        const role = parseRole(optional("ruolo"));
+        const target = parseTarget(text("with"));
+        const role = parseRole(optional("role"));
         const client = await deps.client();
         const id = await resolveTool(client, text("tool"));
         const tool = await client.share(id, target, role);
-        return `Condiviso con ${describeGrant(target)} (${describeRole(role)}), con effetto immediato.\n\n${describeTool(tool)}`;
+        return `${m("mcp_shared", { who: describeGrant(target), role: describeRole(role) })}\n\n${describeTool(tool)}`;
       }
-      case "sharebox_revoca": {
-        const target = parseTarget(text("con"));
+      case "sharebox_unshare": {
+        const target = parseTarget(text("with"));
         const client = await deps.client();
         const id = await resolveTool(client, text("tool"));
         const tool = await client.unshare(id, target);
-        return `Accesso tolto a ${describeGrant(target)}, con effetto immediato.\n\n${describeTool(tool)}`;
+        return `${m("mcp_unshared", { who: describeGrant(target) })}\n\n${describeTool(tool)}`;
       }
       default:
-        throw new Error(`Strumento sconosciuto: ${name}`);
+        throw new Error(m("mcp_unknown_tool", { name: requested }));
     }
   }
 
@@ -176,7 +204,7 @@ export function createMcpHandler(deps: McpDeps) {
       }
       default:
         if (isNotification) return null;
-        return { jsonrpc: "2.0", id: message.id, error: { code: -32601, message: `Metodo non supportato: ${message.method}` } };
+        return { jsonrpc: "2.0", id: message.id, error: { code: -32601, message: m("mcp_unknown_method", { method: String(message.method) }) } };
     }
   };
 }
@@ -185,8 +213,8 @@ function describeTool(tool: { name: string; url: string; version: number | null;
   const grants = tool.grants ?? [];
   const lines = [
     `${tool.name} — ${tool.url}`,
-    `Versione: ${tool.version ?? "mai pubblicato"}; proprietario: ${tool.owner}`,
-    grants.length === 0 ? "Condiviso con: nessuno (privato)" : "Condiviso con:",
+    m("mcp_tool_version", { version: tool.version ?? m("never_published"), owner: tool.owner }),
+    grants.length === 0 ? m("mcp_shared_none") : m("mcp_shared_with"),
     ...grants.map((g) => `- ${describeGrant(g)}: ${describeRole(g.role)}`),
   ];
   return lines.join("\n");
@@ -201,7 +229,7 @@ export function serveStdio(handle: (message: JsonRpcMessage) => Promise<object |
     try {
       message = JSON.parse(line) as JsonRpcMessage;
     } catch {
-      process.stdout.write(`${JSON.stringify({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "JSON non valido" } })}\n`);
+      process.stdout.write(`${JSON.stringify({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "Parse error" } })}\n`);
       return;
     }
     handle(message).then(

@@ -1,3 +1,5 @@
+import type { Lang } from "@sharebox/shared";
+
 const ESCAPES: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
 
 export function escapeHtml(value: string): string {
@@ -5,9 +7,9 @@ export function escapeHtml(value: string): string {
 }
 
 /** Pagina semplice della piattaforma (errori, accesso negato). `body` deve essere già escapato. */
-export function page(status: number, title: string, body: string): Response {
+export function page(lang: Lang, status: number, title: string, body: string): Response {
   const html = `<!doctype html>
-<html lang="it">
+<html lang="${lang}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">

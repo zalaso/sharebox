@@ -1,11 +1,15 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
+import { setLang } from "../src/i18n";
 import { parseRole, parseTarget, publish, resolveTool } from "../src/operations";
 import { bundleWorker, collectPublic, findWorker } from "../src/project";
 import { fakePlatform, tempProject } from "./helpers";
 
 const unb64 = (s: string) => Buffer.from(s, "base64").toString("utf8");
+
+// I messaggi controllati qui sono quelli italiani; l'inglese ha i suoi test in i18n.test.ts.
+beforeEach(() => setLang("it"));
 
 describe("collectPublic", () => {
   it("legge public/ in base64, saltando file nascosti e node_modules", async () => {

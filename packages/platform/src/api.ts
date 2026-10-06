@@ -13,11 +13,12 @@
 //   POST   /api/tools/<id>/suspend | resume                            → sospende (ferma il container) o riattiva
 //   GET    /api/tokens, DELETE /api/tokens/<id>                        → computer collegati dell'utente
 // Autenticazione: token (CLI, agenti) oppure sessione del browser con Sec-Fetch-Site: same-origin (dashboard).
-import { PLATFORM_DIR, bundleProblem, pathProblem, type Principal, type Role } from "@sharebox/shared";
+import { PLATFORM_DIR, bundleProblem, describeBundleProblem, describePathProblem, pathProblem, type Lang, type Principal, type Role } from "@sharebox/shared";
 import { effectiveRole } from "./access";
 import type { Config } from "./config";
 import { PLATFORM_SESSION_COOKIE, readCookie } from "./cookies";
 import { randomId } from "./crypto";
+import { langOf, t, type MessageKey, type Params } from "./messages";
 import { OrchestratorError, type Orchestrator } from "./orchestrator-client";
 import type { Store, Tool, User } from "./store";
 
@@ -32,14 +33,18 @@ export interface ApiDeps {
   runtimeEntry: string;
 }
 
-/** Errore da mostrare a chi chiama l'API. */
+/** Errore da mostrare a chi chiama l'API, nella sua lingua (il testo si sceglie alla risposta). */
 class ApiError extends Error {
   constructor(
     readonly status: number,
-    message: string,
+    readonly text: (lang: Lang) => string,
   ) {
-    super(message);
+    super(text("it"));
   }
+}
+
+function fail(status: number, key: MessageKey, params?: Params): ApiError {
+  return new ApiError(status, (lang) => t(lang, key, params));
 }
 
 export function createApi(deps: ApiDeps): (request: Request) => Promise<Response> {
@@ -61,18 +66,18 @@ export function createApi(deps: ApiDeps): (request: Request) => Promise<Response
   function managedTool(user: User, id: string): Tool {
     const tool = store.toolById(id);
     const role = tool ? effectiveRole(user, tool.ownerEmail, store.grantsFor(tool.id)) : null;
-    if (!tool || role === null) throw new ApiError(404, "Tool non trovato");
-    if (role !== "manage") throw new ApiError(403, "Puoi usare questo tool ma non gestirlo");
+    if (!tool || role === null) throw fail(404, "api.tool_not_found");
+    if (role !== "manage") throw fail(403, "api.use_only");
     return tool;
   }
 
   async function createTool(user: User, request: Request): Promise<Response> {
-    if (!user.isCreator) throw new ApiError(403, "Il tuo account non può pubblicare tool: chiedi di essere abilitato");
+    if (!user.isCreator) throw fail(403, "api.not_creator");
     if (store.countToolsOwnedBy(user.email) >= MAX_TOOLS_PER_CREATOR) {
-      throw new ApiError(403, `Hai raggiunto il limite di ${MAX_TOOLS_PER_CREATOR} tool`);
+      throw fail(403, "api.tool_limit", { max: MAX_TOOLS_PER_CREATOR });
     }
     const { name } = (await readJson(request)) as { name?: unknown };
-    if (typeof name !== "string" || !name.trim() || name.length > 80) throw new ApiError(400, "Serve un nome (massimo 80 caratteri)");
+    if (typeof name !== "string" || !name.trim() || name.length > 80) throw fail(400, "api.name_required");
 
     const tool = store.createTool({
       id: randomId(12),
@@ -88,30 +93,31 @@ export function createApi(deps: ApiDeps): (request: Request) => Promise<Response
   async function deploy(user: User, request: Request, id: string): Promise<Response> {
     const tool = managedTool(user, id);
     const body = (await readJson(request)) as { files?: unknown; worker?: unknown };
-    if (!body.files || typeof body.files !== "object") throw new ApiError(400, "Manca l'elenco dei file (files)");
+    if (!body.files || typeof body.files !== "object") throw fail(400, "api.files_missing");
 
     // I file del creatore vanno in public/, il suo worker e il runtime in _sharebox/: non può sovrascriverli.
     const decoded = new Map<string, Uint8Array>();
     for (const [path, content] of Object.entries(body.files as Record<string, unknown>)) {
       const problem = pathProblem(path);
-      if (problem || typeof content !== "string") throw new ApiError(400, `${path}: ${problem ?? "contenuto non valido"}`);
+      if (problem) throw new ApiError(400, (lang) => `${path}: ${describePathProblem(problem, lang)}`);
+      if (typeof content !== "string") throw fail(400, "api.invalid_content", { path });
       decoded.set(`public/${path}`, Buffer.from(content, "base64"));
     }
     const hasWorker = typeof body.worker === "string" && body.worker.length > 0;
-    if (decoded.size === 0 && !hasWorker) throw new ApiError(400, "Il tool non contiene file né un worker");
+    if (decoded.size === 0 && !hasWorker) throw fail(400, "api.nothing_to_publish");
     decoded.set(`${PLATFORM_DIR}/user.js`, hasWorker ? Buffer.from(body.worker as string, "base64") : Buffer.from("export default {};\n"));
     decoded.set(`${PLATFORM_DIR}/entry.js`, Buffer.from(deps.runtimeEntry));
     const problem = bundleProblem(decoded);
-    if (problem) throw new ApiError(400, problem);
+    if (problem) throw new ApiError(400, (lang) => describeBundleProblem(problem, lang));
 
     const version = store.nextVersion(tool.id);
     const files = Object.fromEntries([...decoded].map(([path, content]) => [path, Buffer.from(content).toString("base64")]));
     try {
       await orchestrator.deploy(tool.id, version, files);
     } catch (error) {
-      if (error instanceof OrchestratorError && error.status === 400) throw new ApiError(400, error.message);
+      if (error instanceof OrchestratorError && error.status === 400) throw new ApiError(400, () => error.message);
       console.error(`Pubblicazione di ${tool.id} non riuscita:`, error);
-      throw new ApiError(502, "Pubblicazione non riuscita sul server, riprova tra poco");
+      throw fail(502, "api.publish_failed");
     }
 
     const bytes = [...decoded.values()].reduce((sum, content) => sum + content.byteLength, 0);
@@ -122,12 +128,12 @@ export function createApi(deps: ApiDeps): (request: Request) => Promise<Response
 
   async function remove(user: User, request: Request, id: string): Promise<Response> {
     const tool = managedTool(user, id);
-    if (tool.ownerEmail !== user.email) throw new ApiError(403, "Solo il proprietario può eliminare il tool");
+    if (tool.ownerEmail !== user.email) throw fail(403, "api.owner_only_delete");
     try {
       await orchestrator.remove(tool.id);
     } catch (error) {
       console.error(`Eliminazione di ${tool.id} non riuscita:`, error);
-      throw new ApiError(502, "Eliminazione non riuscita sul server, riprova tra poco");
+      throw fail(502, "api.delete_failed");
     }
     store.deleteTool(tool.id);
     store.audit({ actor: user.email, channel: channel(request), action: "tool.delete", toolId: tool.id, details: { slug: tool.slug, name: tool.name } });
@@ -145,8 +151,8 @@ export function createApi(deps: ApiDeps): (request: Request) => Promise<Response
     const tool = managedTool(user, id);
     const body = (await readJson(request)) as { role?: unknown };
     const principal = parsePrincipal(body);
-    if (body.role !== "use" && body.role !== "manage") throw new ApiError(400, "Il ruolo deve essere use o manage");
-    if (principal.type === "user" && principal.email === tool.ownerEmail) throw new ApiError(400, "Il proprietario ha già accesso completo");
+    if (body.role !== "use" && body.role !== "manage") throw fail(400, "api.invalid_role");
+    if (principal.type === "user" && principal.email === tool.ownerEmail) throw fail(400, "api.owner_has_access");
     store.setGrant(tool.id, principal, body.role);
     store.audit({ actor: user.email, channel: channel(request), action: "grant.set", toolId: tool.id, details: { principal, role: body.role } });
     return json(200, details(tool));
@@ -155,7 +161,7 @@ export function createApi(deps: ApiDeps): (request: Request) => Promise<Response
   async function removeGrant(user: User, request: Request, id: string): Promise<Response> {
     const tool = managedTool(user, id);
     const principal = parsePrincipal(await readJson(request));
-    if (!store.removeGrant(tool.id, principal)) throw new ApiError(404, "Condivisione non trovata");
+    if (!store.removeGrant(tool.id, principal)) throw fail(404, "api.grant_not_found");
     store.audit({ actor: user.email, channel: channel(request), action: "grant.remove", toolId: tool.id, details: { principal } });
     return json(200, details(tool));
   }
@@ -168,7 +174,7 @@ export function createApi(deps: ApiDeps): (request: Request) => Promise<Response
       else if (store.latestDeployment(tool.id)) await orchestrator.start(tool.id);
     } catch (error) {
       console.error(`${suspended ? "Sospensione" : "Riattivazione"} di ${tool.id} non riuscita:`, error);
-      throw new ApiError(502, "Operazione non riuscita sul server, riprova tra poco");
+      throw fail(502, "api.operation_failed");
     }
     store.setToolStatus(tool.id, suspended ? "suspended" : "active");
     store.audit({ actor: user.email, channel: channel(request), action: suspended ? "tool.suspend" : "tool.resume", toolId: tool.id, details: {} });
@@ -180,7 +186,7 @@ export function createApi(deps: ApiDeps): (request: Request) => Promise<Response
       return what === "status" ? json(200, await orchestrator.status(id)) : json(200, { lines: await orchestrator.logs(id, tail) });
     } catch (error) {
       console.error(`Lettura ${what} di ${id} non riuscita:`, error);
-      throw new ApiError(502, "Informazione non disponibile, riprova tra poco");
+      throw fail(502, "api.info_unavailable");
     }
   }
 
@@ -197,7 +203,7 @@ export function createApi(deps: ApiDeps): (request: Request) => Promise<Response
     if (path === "/api/tokens" && request.method === "GET") return json(200, { tokens: store.apiTokensOf(user.sub) });
     const tokenMatch = /^\/api\/tokens\/([a-z0-9]+)$/.exec(path);
     if (tokenMatch && request.method === "DELETE") {
-      if (!store.revokeApiTokenOf(user.sub, tokenMatch[1]!)) throw new ApiError(404, "Token non trovato");
+      if (!store.revokeApiTokenOf(user.sub, tokenMatch[1]!)) throw fail(404, "api.token_not_found");
       store.audit({ actor: user.email, channel: channel(request), action: "token.revoke", toolId: null, details: { id: tokenMatch[1] } });
       return json(200, { revoked: tokenMatch[1] });
     }
@@ -229,7 +235,7 @@ export function createApi(deps: ApiDeps): (request: Request) => Promise<Response
     const grantsMatch = /^\/api\/tools\/([a-z0-9]+)\/grants$/.exec(path);
     if (grantsMatch && request.method === "PUT") return setGrant(user, request, grantsMatch[1]!);
     if (grantsMatch && request.method === "DELETE") return removeGrant(user, request, grantsMatch[1]!);
-    throw new ApiError(404, "Operazione non trovata");
+    throw fail(404, "api.not_found");
   }
 
   return async (request) => {
@@ -237,21 +243,21 @@ export function createApi(deps: ApiDeps): (request: Request) => Promise<Response
       const token = /^Bearer (\S+)$/.exec(request.headers.get("authorization") ?? "")?.[1] ?? null;
       if (token) {
         const user = store.userByApiToken(token);
-        if (!user) throw new ApiError(401, "Token mancante o non valido: esegui `sharebox login`");
+        if (!user) throw fail(401, "api.unauthorized");
         return await route(user, token, request, new URL(request.url));
       }
       // Dashboard: sessione del browser, accettata solo per richieste partite dalla piattaforma stessa.
       const session = readCookie(request.headers.get("cookie"), PLATFORM_SESSION_COOKIE);
-      if (!session) throw new ApiError(401, "Token mancante o non valido: esegui `sharebox login`");
-      if (request.headers.get("sec-fetch-site") !== "same-origin") throw new ApiError(403, "Richiesta non consentita");
+      if (!session) throw fail(401, "api.unauthorized");
+      if (request.headers.get("sec-fetch-site") !== "same-origin") throw fail(403, "api.forbidden");
       const user = store.sessionUser("platform", session);
-      if (!user) throw new ApiError(401, "Sessione scaduta: ricarica la pagina");
+      if (!user) throw fail(401, "api.session_expired");
       WEB_REQUESTS.add(request);
       return await route(user, null, request, new URL(request.url));
     } catch (error) {
-      if (error instanceof ApiError) return json(error.status, { error: error.message });
+      if (error instanceof ApiError) return json(error.status, { error: error.text(langOf(request)) });
       console.error(error);
-      return json(500, { error: "Errore interno" });
+      return json(500, { error: t(langOf(request), "api.internal") });
     }
   };
 }
@@ -279,7 +285,7 @@ function parsePrincipal(body: unknown): Principal {
   if (type === "anyone") return { type };
   if (type === "user" && EMAIL.test(normalized)) return { type, email: normalized };
   if (type === "domain" && DOMAIN.test(normalized.replace(/^@/, ""))) return { type, domain: normalized.replace(/^@/, "") };
-  throw new ApiError(400, "Condivisione non valida: serve type user (con email), domain (con dominio) o anyone");
+  throw fail(400, "api.invalid_grant");
 }
 
 function principalJson(principal: Principal): { type: Principal["type"]; value?: string } {
@@ -303,11 +309,11 @@ function channel(request: Request): "cli" | "mcp" | "web" {
 }
 
 async function readJson(request: Request): Promise<unknown> {
-  if (Number(request.headers.get("content-length") ?? 0) > MAX_BODY_BYTES) throw new ApiError(413, "Richiesta troppo grande");
+  if (Number(request.headers.get("content-length") ?? 0) > MAX_BODY_BYTES) throw fail(413, "api.too_large");
   try {
     return await request.json();
   } catch {
-    throw new ApiError(400, "JSON non valido");
+    throw fail(400, "api.invalid_json");
   }
 }
 

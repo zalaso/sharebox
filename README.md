@@ -10,7 +10,7 @@
 
 **English** · [Italiano](README.it.md)
 
-<img src="docs/img/dashboard.png" alt="ShareBox dashboard" width="760">
+<img src="docs/img/dashboard-en.png" alt="ShareBox dashboard" width="760">
 
 </div>
 
@@ -36,7 +36,7 @@ ShareBox is **self-hosted**: you run your own instance on a small Linux server, 
 - **Daily backups**, optionally copied to Google Drive encrypted.
 - **Cheap**: runs on a ~4 €/month VPS; the tools' domain can be a free DuckDNS subdomain.
 
-<img src="docs/img/dashboard-tool.png" alt="Tool details: sharing, status, logs and activity" width="640">
+<img src="docs/img/dashboard-tool-en.png" alt="Tool details: sharing, status, logs and activity" width="640">
 
 ## How it works
 
@@ -83,7 +83,7 @@ Step-by-step guide, including DNS and Google setup: **[docs/install.md](docs/ins
 
 ## Building a tool
 
-An agent connected through MCP reads the built-in guide (`sharebox_guida`) and knows what to do. By hand:
+An agent connected through MCP reads the built-in guide (`sharebox_guide`) and knows what to do. By hand:
 
 ```bash
 sharebox init vacation-tracker --name "Vacation tracker"   # starter with an SDK example
@@ -114,7 +114,7 @@ Users with *can use* edit only their own records; *can manage* edits everything 
 Young project, running on the author's private instance. Working today: publishing, sharing, storage, CLI, MCP, dashboard, backups, self-hosted installer, CI.
 
 Known limitations and next steps:
-- **The user interface (dashboard, CLI, pages) is in Italian only** — translations are welcome.
+- The interface (dashboard, pages, CLI, installer) is in English and Italian, picked from the browser or system language. Other languages are welcome: the dictionaries are in `packages/platform/src/messages.ts`, `packages/platform/dashboard/app.js`, `packages/runtime/src/messages.ts` and `packages/cli/src/i18n.ts`.
 - Single server: about 25 tools running at once on 2 GB of RAM; stopping idle tools is planned.
 - Tools cannot call external APIs yet (no internet access, no secrets) — planned, behind an egress proxy.
 - Sign-in with Google only; publishing is limited to the e-mails listed in `CREATOR_EMAILS`.

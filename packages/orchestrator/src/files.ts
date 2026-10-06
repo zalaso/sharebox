@@ -1,7 +1,7 @@
 // File dei tool sul disco del server: <toolsDir>/<id>/v<versione>/…
 import { mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve, sep } from "node:path";
-import { bundleProblem } from "@sharebox/shared";
+import { bundleProblem, describeBundleProblem } from "@sharebox/shared";
 import { InvalidRequest } from "./spec";
 
 export function versionDir(toolsDir: string, id: string, version: number): string {
@@ -11,7 +11,8 @@ export function versionDir(toolsDir: string, id: string, version: number): strin
 /** Scrive i file di una versione. I percorsi vengono ricontrollati: l'orchestratore non si fida di chi lo chiama. */
 export async function writeVersion(toolsDir: string, id: string, version: number, files: ReadonlyMap<string, Uint8Array>): Promise<string> {
   const problem = bundleProblem(files);
-  if (problem) throw new InvalidRequest(problem);
+  // Messaggio in italiano: arriva alla piattaforma, che rifiuta già prima i file non validi.
+  if (problem) throw new InvalidRequest(describeBundleProblem(problem, "it"));
 
   const root = resolve(versionDir(toolsDir, id, version));
   await rm(root, { recursive: true, force: true });

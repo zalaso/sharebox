@@ -40,7 +40,9 @@
 	handle {
 		root * /srv/site
 		try_files {path} {path}.html
-		# Le pagine sono modelli: titolare, contatto e hosting arrivano da deploy/.env.
+		# Le pagine sono modelli: titolare, contatto e hosting arrivano da deploy/.env,
+		# la lingua da Accept-Language (da qui il Vary, per le cache).
+		header Vary Accept-Language
 		templates
 		file_server
 	}

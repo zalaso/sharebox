@@ -1,4 +1,4 @@
-import { SESSION_COOKIE, type Identity, type Role } from "@sharebox/shared";
+import { SESSION_COOKIE, pickLang, type Identity, type Role } from "@sharebox/shared";
 import { isAllowedRequest } from "./cross-site";
 import { forwardedHeaders, returnedHeaders } from "./headers";
 import { toolSlugFromHost } from "./host";
@@ -16,6 +16,21 @@ export interface GatewayOptions {
   fetchUpstream?: typeof fetch;
 }
 
+const MESSAGES = {
+  it: {
+    notFound: "Tool non trovato",
+    crossSite: "Richiesta da un altro sito non consentita",
+    timeout: "Il tool non ha risposto in tempo",
+    unreachable: "Tool non raggiungibile",
+  },
+  en: {
+    notFound: "Tool not found",
+    crossSite: "Requests from other sites are not allowed",
+    timeout: "The tool did not respond in time",
+    unreachable: "Tool unreachable",
+  },
+};
+
 // Header legati alla singola connessione o alla compressione: non vanno inoltrati al tool.
 const HOP_BY_HOP = ["connection", "keep-alive", "proxy-connection", "transfer-encoding", "te", "trailer", "upgrade", "host", "accept-encoding"];
 
@@ -26,9 +41,10 @@ export function createGateway(options: GatewayOptions): (request: Request) => Pr
   return async (request) => {
     const url = new URL(request.url);
     const slug = toolSlugFromHost(url.hostname, options.toolsDomain);
-    if (!slug) return text(404, "Tool non trovato");
+    const lang = pickLang(request.headers.get("accept-language"));
+    if (!slug) return text(404, MESSAGES[lang].notFound);
     if (!isAllowedRequest(request.method, request.headers.get("sec-fetch-site"))) {
-      return text(403, "Richiesta da un altro sito non consentita");
+      return text(403, MESSAGES[lang].crossSite);
     }
 
     const auth = await options.authenticate(request, slug);
@@ -51,9 +67,7 @@ export function createGateway(options: GatewayOptions): (request: Request) => Pr
         duplex: "half",
       } as RequestInit);
     } catch {
-      return controller.signal.aborted
-        ? text(504, "Il tool non ha risposto in tempo")
-        : text(502, "Tool non raggiungibile");
+      return controller.signal.aborted ? text(504, MESSAGES[lang].timeout) : text(502, MESSAGES[lang].unreachable);
     } finally {
       clearTimeout(timer);
     }

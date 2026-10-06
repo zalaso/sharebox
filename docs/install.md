@@ -43,25 +43,25 @@ git clone https://github.com/zalaso/sharebox /opt/sharebox
 cd /opt/sharebox && bash deploy/install.sh
 ```
 
-The script installs Docker and gVisor, then asks (in Italian) for:
+The script installs Docker and gVisor, then asks for (in English, or in Italian if the server's locale is Italian or `SHAREBOX_LANG=it`):
 
 | Prompt | Meaning |
 |---|---|
-| *IP pubblico del server* | Public IP of the server (detected automatically) |
-| *Dominio della piattaforma* | Platform domain |
-| *Certificato dei tool: duckdns o cloudflare* | DNS provider for the tools' certificate |
-| *Sottodominio DuckDNS* / *Dominio dei tool su Cloudflare* | Tools domain |
-| *Token DuckDNS* / *Token API Cloudflare* | Provider token (not echoed) |
-| *Google OAuth: ID client* / *client secret* | Google OAuth client (secret not echoed) |
-| *Email di chi può pubblicare tool* | Comma-separated e-mails allowed to publish tools |
-| *Nome di chi gestisce l'istanza*, *Email di contatto per la privacy*, *Dove sta il server* | Operator name, contact e-mail and hosting location, shown in the privacy policy |
+| *Public IP of the server* | Detected automatically: press Enter to accept |
+| *Platform domain* | e.g. `sharebox.example.com` |
+| *Tool certificate: duckdns or cloudflare* | DNS provider for the tools' wildcard certificate |
+| *DuckDNS subdomain* / *Tools domain on Cloudflare* | Tools domain |
+| *DuckDNS token* / *Cloudflare API token* | Provider token (not echoed) |
+| *Google OAuth: client ID* / *client secret* | Google OAuth client (secret not echoed) |
+| *Emails of the people who can publish tools* | Comma separated |
+| *Name of the instance operator*, *Contact email for privacy matters*, *Where the server is* | Shown in the privacy policy |
 
 It then checks DNS, ports and firewall, builds and starts the services and schedules the nightly backup. The configuration is written to `deploy/.env`, readable by root only. Running it again is safe.
 
 When it finishes, open `https://<platform>/app` and sign in with one of the creator accounts.
 
 ## 4. Connect your computer and agents
-The dashboard shows these commands with your instance's address filled in (*Come collegare un computer o un agente*). You need Node 20 or newer.
+The dashboard shows these commands with your instance's address filled in (*How to connect a computer or an agent*). You need Node 20 or newer.
 
 ```bash
 npm install -g https://<platform>/cli/sharebox.tgz
@@ -71,7 +71,7 @@ npm install -g https://<platform>/cli/sharebox.tgz
 sharebox login <platform>
 ```
 
-Your browser opens to confirm (*Autorizza* = Authorize). For Claude Code (on Windows: `-- cmd /c sharebox mcp`):
+Your browser opens to confirm: click **Authorize**. For Claude Code (on Windows: `-- cmd /c sharebox mcp`):
 
 ```bash
 claude mcp add --scope user sharebox -- sharebox mcp
@@ -98,4 +98,4 @@ Pulls the new version, rebuilds and restarts. Data, configuration and backups ar
 
 To change a setting, edit `deploy/.env` and run `docker compose up -d` from `/opt/sharebox/deploy`.
 
-The operator of an instance is responsible for its users' data: the pages in `deploy/site/` (home and privacy policy, in Italian) are a starting point to adapt — with legal advice if the instance is open to other people.
+The operator of an instance is responsible for its users' data: the pages in `deploy/site/` (home and privacy policy, in English and Italian) are a starting point to adapt — with legal advice if the instance is open to other people.

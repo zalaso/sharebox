@@ -6,6 +6,7 @@
 //   const tutte = await ferie.list();                     // [{ id, data, owner, createdAt, updatedAt, canEdit }]
 //   await ferie.update(id, { ... });  await ferie.remove(id);
 export const SDK_SOURCE = `(() => {
+  const italian = /^it\\b/i.test(navigator.language || "");
   async function call(method, path, body) {
     const response = await fetch(path, {
       method,
@@ -13,11 +14,13 @@ export const SDK_SOURCE = `(() => {
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     // Sessione scaduta: ricaricando la pagina si passa di nuovo dal login.
-    if (response.status === 401) { location.reload(); throw new Error("Accesso scaduto"); }
+    if (response.status === 401) { location.reload(); throw new Error(italian ? "Accesso scaduto" : "Session expired"); }
     const result = await response.json().catch(() => ({}));
     if (!response.ok) {
-      const error = new Error(result.error || "Errore " + response.status);
+      // Il messaggio è già nella lingua del browser; il campo code resta uguale in ogni lingua.
+      const error = new Error(result.error || (italian ? "Errore " : "Error ") + response.status);
       error.status = response.status;
+      error.code = result.code;
       throw error;
     }
     return result;

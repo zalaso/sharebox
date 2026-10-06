@@ -2,6 +2,7 @@
 import { existsSync, statSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { ShareboxError, type Grant, type Role, type ShareboxClient, type ToolInfo } from "./client";
+import { m } from "./i18n";
 import { ProjectError, bundleWorker, collectPublic, findWorker, readManifest, writeManifest } from "./project";
 
 export interface PublishResult {
@@ -15,12 +16,12 @@ export interface PublishResult {
 /** Pubblica la cartella: al primo publish crea il tool e scrive l'id in sharebox.json; poi aggiorna sempre lo stesso tool. */
 export async function publish(client: ShareboxClient, dir: string, options: { name?: string } = {}): Promise<PublishResult> {
   const folder = resolve(dir);
-  if (!existsSync(folder) || !statSync(folder).isDirectory()) throw new ProjectError(`Cartella non trovata: ${folder}`);
+  if (!existsSync(folder) || !statSync(folder).isDirectory()) throw new ProjectError(m("folder_not_found", { folder }));
   const manifest = await readManifest(folder);
   const workerEntry = findWorker(folder);
   const publicFiles = await collectPublic(folder);
   if (publicFiles.count === 0 && !workerEntry) {
-    throw new ProjectError(`${folder} non contiene né una cartella public/ né un worker.ts: non c'è niente da pubblicare`);
+    throw new ProjectError(m("nothing_to_publish", { folder }));
   }
   const worker = workerEntry ? await bundleWorker(workerEntry) : undefined;
 
@@ -39,10 +40,7 @@ export async function publish(client: ShareboxClient, dir: string, options: { na
   } catch (error) {
     // Tipico con una cartella copiata da un'altra istanza o con un tool eliminato: l'id non esiste qui.
     if (!created && error instanceof ShareboxError && error.status === 404) {
-      throw new ProjectError(
-        `Il tool ${id} indicato in sharebox.json non esiste su questa ShareBox (eliminato, o cartella pubblicata su un'altra istanza). ` +
-          `Per crearne uno nuovo togli la riga "id" da ${join(folder, "sharebox.json")} e ripubblica.`,
-      );
+      throw new ProjectError(m("id_not_here", { id, file: join(folder, "sharebox.json") }));
     }
     throw error;
   }
@@ -54,39 +52,39 @@ export async function resolveTool(client: ShareboxClient, ref: string): Promise<
   const folder = resolve(ref);
   if (existsSync(folder) && statSync(folder).isDirectory()) {
     const { id } = await readManifest(folder);
-    if (!id) throw new ProjectError(`${folder} non è ancora stato pubblicato (manca l'id in sharebox.json)`);
+    if (!id) throw new ProjectError(m("not_published_yet", { folder }));
     return id;
   }
   if (/^[a-z0-9]{12}$/.test(ref)) return ref;
   const wanted = ref.replace(/^https?:\/\//, "").split(".")[0]!.toLowerCase();
   const matches = (await client.listTools()).filter((t) => t.slug === wanted || t.name.toLowerCase() === ref.toLowerCase());
   if (matches.length === 1) return matches[0]!.id;
-  if (matches.length > 1) throw new ProjectError(`Più tool si chiamano "${ref}": usa l'id (sharebox list)`);
-  throw new ProjectError(`Tool non trovato: ${ref}`);
+  if (matches.length > 1) throw new ProjectError(m("ambiguous", { ref }));
+  throw new ProjectError(m("tool_not_found", { ref }));
 }
 
-/** "anna@azienda.com" → persona, "@azienda.com" → dominio, "chiunque" → chiunque abbia il link. */
+/** "anna@azienda.com" → persona, "@azienda.com" → dominio, "chiunque"/"anyone" → chiunque abbia il link. */
 export function parseTarget(target: string): Omit<Grant, "role"> {
   const value = target.trim().toLowerCase();
-  if (["chiunque", "anyone", "link", "tutti"].includes(value)) return { type: "anyone" };
+  if (["chiunque", "anyone", "everyone", "link", "tutti"].includes(value)) return { type: "anyone" };
   if (value.startsWith("@")) return { type: "domain", value: value.slice(1) };
   if (value.includes("@")) return { type: "user", value };
-  throw new ProjectError(`Non capisco con chi condividere "${target}": usa un'email, @dominio.it oppure chiunque`);
+  throw new ProjectError(m("bad_target", { target }));
 }
 
 export function parseRole(role: string | undefined): Role {
   if (role === undefined || ["use", "usa", "uso"].includes(role)) return "use";
   if (["manage", "gestisci", "gestione"].includes(role)) return "manage";
-  throw new ProjectError(`Ruolo non valido: ${role} (use oppure manage)`);
+  throw new ProjectError(m("bad_role", { role }));
 }
 
 export function describeGrant(grant: Pick<Grant, "type" | "value">): string {
-  if (grant.type === "anyone") return "chiunque abbia il link";
-  return grant.type === "domain" ? `tutti gli account @${grant.value}` : grant.value!;
+  if (grant.type === "anyone") return m("grant_anyone");
+  return grant.type === "domain" ? m("grant_domain", { domain: grant.value! }) : grant.value!;
 }
 
 export function describeRole(role: Role): string {
-  return role === "manage" ? "può gestire" : "può usare";
+  return m(role === "manage" ? "role_manage" : "role_use");
 }
 
 export function formatBytes(bytes: number): string {

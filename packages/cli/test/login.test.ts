@@ -1,5 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
+import { setLang } from "../src/i18n";
 import { browserLogin } from "../src/login";
+
+// I messaggi controllati qui sono quelli italiani; l'inglese ha i suoi test in i18n.test.ts.
+beforeEach(() => setLang("it"));
 
 describe("browserLogin", () => {
   it("apre la pagina della piattaforma e riceve il token sull'indirizzo locale", async () => {

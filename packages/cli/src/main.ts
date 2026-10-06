@@ -1,7 +1,8 @@
 // Comando `sharebox`.
 import { ShareboxClient, ShareboxError } from "./client";
 import { clearCredentials, loadCredentials, normalizeUrl, saveCredentials } from "./config";
-import { GUIDE } from "./guide";
+import { guide } from "./guide";
+import { lang, m } from "./i18n";
 import { browserLogin } from "./login";
 import { createMcpHandler, serveStdio } from "./mcp";
 import { ProjectError } from "./project";
@@ -10,7 +11,8 @@ import { initProject } from "./template";
 
 export const VERSION = "0.1.0";
 
-const HELP = `ShareBox ${VERSION} — pubblica e condividi tool web
+const HELP = {
+  it: `ShareBox ${VERSION} — pubblica e condividi tool web
 
   sharebox login <indirizzo>              collega questo computer a una ShareBox (apre il browser),
                                           es. sharebox login sharebox.example.com
@@ -28,7 +30,29 @@ const HELP = `ShareBox ${VERSION} — pubblica e condividi tool web
   sharebox mcp                            server MCP su stdio, per gli agenti
 
 <tool> può essere la cartella del tool, l'id, l'indirizzo o il nome.
-Opzioni: --json per l'output in JSON. Variabili: SHAREBOX_URL, SHAREBOX_TOKEN.`;
+Opzioni: --json per l'output in JSON.
+Variabili: SHAREBOX_URL, SHAREBOX_TOKEN, SHAREBOX_LANG (it oppure en).`,
+  en: `ShareBox ${VERSION} — publish and share web tools
+
+  sharebox login <address>                connect this computer to a ShareBox (opens the browser),
+                                          e.g. sharebox login sharebox.example.com
+  sharebox logout                         disconnect this computer
+  sharebox whoami                         show the connected account
+  sharebox init <folder> [--name N]       create a new tool from a template
+  sharebox publish [folder] [--name N]    publish or update (default: current folder)
+  sharebox list                           the tools you can manage
+  sharebox info <tool>                    address, version and shares
+  sharebox share <tool> <with> [--role use|manage]
+                                          with: email, @domain.com or anyone
+  sharebox unshare <tool> <with>          remove a share
+  sharebox delete <tool> --yes            delete the tool and its data, for good
+  sharebox guide                          how to build a tool (for agents)
+  sharebox mcp                            MCP server on stdio, for agents
+
+<tool> can be the tool's folder, id, address or name.
+Options: --json for JSON output.
+Variables: SHAREBOX_URL, SHAREBOX_TOKEN, SHAREBOX_LANG (it or en).`,
+};
 
 interface Parsed {
   positional: string[];
@@ -53,7 +77,7 @@ function parseArgs(argv: string[]): Parsed {
 
 async function authenticatedClient(channel: "cli" | "mcp" = "cli"): Promise<ShareboxClient> {
   const { url, token } = await loadCredentials();
-  if (!url || !token) throw new ProjectError("Questo computer non è collegato a ShareBox: esegui prima `sharebox login <indirizzo della tua ShareBox>`");
+  if (!url || !token) throw new ProjectError(m("not_logged_in"));
   return new ShareboxClient(url, token, fetch, channel);
 }
 
@@ -63,15 +87,15 @@ export async function main(argv: string[]): Promise<number> {
   const json = flags.json === true;
   const print = (human: string, data?: unknown) => console.log(json && data !== undefined ? JSON.stringify(data, null, 2) : human);
   const flag = (name: string) => (typeof flags[name] === "string" ? (flags[name] as string) : undefined);
-  const need = (value: string | undefined, what: string) => {
-    if (!value) throw new ProjectError(`Manca ${what}. Vedi sharebox --help`);
+  const need = (value: string | undefined, what: Parameters<typeof m>[0]) => {
+    if (!value) throw new ProjectError(m("missing", { what: m(what) }));
     return value;
   };
 
   switch (command) {
     case undefined:
     case "help":
-      console.log(HELP);
+      console.log(HELP[lang()]);
       return 0;
 
     case "version":
@@ -81,14 +105,14 @@ export async function main(argv: string[]): Promise<number> {
     case "login": {
       const saved = await loadCredentials();
       const target = args[0] ?? saved.url;
-      if (!target) throw new ProjectError("Indica la ShareBox a cui collegarti, es. sharebox login sharebox.example.com");
+      if (!target) throw new ProjectError(m("login_which"));
       const url = normalizeUrl(target);
       const token = await browserLogin(url, {
-        onUrl: (address) => console.error(`Si apre il browser per confermare. Se non si apre, visita:\n${address}\n`),
+        onUrl: (address) => console.error(m("login_opening", { address })),
       });
       const file = await saveCredentials({ url, token });
       const me = await new ShareboxClient(url, token).me();
-      print(`Collegato a ${url} come ${me.email}${me.creator ? "" : " (questo account non può ancora pubblicare tool)"}. Credenziali in ${file}`, { url, ...me });
+      print(m("logged_in", { url, email: me.email, note: me.creator ? "" : m("logged_in_not_creator"), file }), { url, ...me });
       return 0;
     }
 
@@ -96,30 +120,31 @@ export async function main(argv: string[]): Promise<number> {
       const { url, token } = await loadCredentials();
       if (url && token) await new ShareboxClient(url, token).revokeToken().catch(() => undefined);
       await clearCredentials();
-      print("Computer scollegato da ShareBox.");
+      print(m("logged_out"));
       return 0;
     }
 
     case "whoami": {
       const me = await (await authenticatedClient()).me();
-      print(`${me.name} <${me.email}>${me.creator ? ", può pubblicare tool" : ""}`, me);
+      print(`${me.name} <${me.email}>${me.creator ? m("whoami_creator") : ""}`, me);
       return 0;
     }
 
     case "init": {
-      const dir = need(args[0], "la cartella del nuovo tool");
+      const dir = need(args[0], "what_new_folder");
       const folder = await initProject(dir, flag("name") ?? dir.split(/[\\/]/).filter(Boolean).pop()!);
-      print(`Creato ${folder}. Modifica public/index.html, poi: sharebox publish ${dir}`, { folder });
+      print(m("init_done", { folder, dir }), { folder });
       return 0;
     }
 
     case "publish": {
-      const result = await publish(await authenticatedClient(), args[0] ?? ".", { name: flag("name") });
+      const dir = args[0] ?? ".";
+      const result = await publish(await authenticatedClient(), dir, { name: flag("name") });
       const lines = [
-        `${result.created ? "Pubblicato" : "Aggiornato"} ${result.tool.name}: ${result.tool.url}`,
-        `Versione ${result.tool.version} — ${result.files} file (${formatBytes(result.bytes)})${result.worker ? " + worker" : ""}`,
+        m(result.created ? "published" : "updated", { name: result.tool.name, url: result.tool.url }),
+        m("version_line", { version: result.tool.version ?? "-", files: result.files, size: formatBytes(result.bytes), worker: result.worker ? " + worker" : "" }),
       ];
-      if (result.created) lines.push(`Il tool è privato. Per condividerlo: sharebox share ${args[0] ?? "."} anna@azienda.com`);
+      if (result.created) lines.push(m("private_hint", { dir }));
       print(lines.join("\n"), result);
       return 0;
     }
@@ -128,8 +153,13 @@ export async function main(argv: string[]): Promise<number> {
       const tools = await (await authenticatedClient()).listTools();
       print(
         tools.length === 0
-          ? "Nessun tool."
-          : tools.map((t) => `${t.name}\n  ${t.url}\n  id ${t.id} · versione ${t.version ?? "-"} · ${t.status === "active" ? "attivo" : "sospeso"}`).join("\n"),
+          ? m("no_tools")
+          : tools
+              .map((t) => {
+                const status = m(t.status === "active" ? "status_active" : "status_suspended");
+                return `${t.name}\n  ${t.url}\n  ${m("list_line", { id: t.id, version: t.version ?? "-", status })}`;
+              })
+              .join("\n"),
         tools,
       );
       return 0;
@@ -137,13 +167,13 @@ export async function main(argv: string[]): Promise<number> {
 
     case "info": {
       const client = await authenticatedClient();
-      const tool = await client.getTool(await resolveTool(client, need(args[0], "il tool")));
+      const tool = await client.getTool(await resolveTool(client, need(args[0], "what_tool")));
       const grants = tool.grants ?? [];
       print(
         [
           `${tool.name} — ${tool.url}`,
-          `id ${tool.id} · versione ${tool.version ?? "-"} · proprietario ${tool.owner}`,
-          grants.length === 0 ? "Privato: non condiviso con nessuno" : "Condiviso con:",
+          m("info_line", { id: tool.id, version: tool.version ?? "-", owner: tool.owner }),
+          grants.length === 0 ? m("info_private") : m("info_shared_with"),
           ...grants.map((g) => `  ${describeGrant(g)}: ${describeRole(g.role)}`),
         ].join("\n"),
         tool,
@@ -153,38 +183,39 @@ export async function main(argv: string[]): Promise<number> {
 
     case "share": {
       const client = await authenticatedClient();
-      const id = await resolveTool(client, need(args[0], "il tool"));
-      const target = parseTarget(need(args[1], "con chi condividere (email, @dominio o chiunque)"));
+      const id = await resolveTool(client, need(args[0], "what_tool"));
+      const target = parseTarget(need(args[1], "what_share_target"));
       const role = parseRole(flag("role"));
       const tool = await client.share(id, target, role);
-      print(`${tool.name}: condiviso con ${describeGrant(target)} (${describeRole(role)}). Effetto immediato.`, tool);
+      print(m("shared", { name: tool.name, who: describeGrant(target), role: describeRole(role) }), tool);
       return 0;
     }
 
     case "unshare": {
       const client = await authenticatedClient();
-      const id = await resolveTool(client, need(args[0], "il tool"));
-      const target = parseTarget(need(args[1], "la condivisione da togliere"));
+      const id = await resolveTool(client, need(args[0], "what_tool"));
+      const target = parseTarget(need(args[1], "what_unshare_target"));
       const tool = await client.unshare(id, target);
-      print(`${tool.name}: tolto l'accesso a ${describeGrant(target)}. Effetto immediato.`, tool);
+      print(m("unshared", { name: tool.name, who: describeGrant(target) }), tool);
       return 0;
     }
 
     case "delete": {
       const client = await authenticatedClient();
-      const id = await resolveTool(client, need(args[0], "il tool"));
+      const ref = need(args[0], "what_tool");
+      const id = await resolveTool(client, ref);
       if (flags.yes !== true) {
         const tool = await client.getTool(id);
-        console.error(`Eliminare ${tool.name} (${tool.url}) cancella anche tutti i suoi dati, senza ritorno.\nPer confermare: sharebox delete ${args[0]} --yes`);
+        console.error(m("delete_confirm", { name: tool.name, url: tool.url, ref }));
         return 1;
       }
       await client.deleteTool(id);
-      print("Tool eliminato con i suoi dati.", { deleted: id });
+      print(m("deleted"), { deleted: id });
       return 0;
     }
 
     case "guide":
-      console.log(GUIDE);
+      console.log(guide(lang()));
       return 0;
 
     case "mcp":
@@ -192,7 +223,7 @@ export async function main(argv: string[]): Promise<number> {
       return -1; // resta in esecuzione
 
     default:
-      console.error(`Comando sconosciuto: ${command}\n\n${HELP}`);
+      console.error(`${m("unknown_command", { command })}\n\n${HELP[lang()]}`);
       return 1;
   }
 }
@@ -204,7 +235,7 @@ export async function run(argv: string[]): Promise<void> {
   } catch (error) {
     if (error instanceof ShareboxError || error instanceof ProjectError) {
       console.error(error.message);
-      if (error instanceof ShareboxError && error.status === 401) console.error("Esegui `sharebox login`.");
+      if (error instanceof ShareboxError && error.status === 401) console.error(m("run_login"));
     } else {
       console.error(error);
     }

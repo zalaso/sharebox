@@ -1,14 +1,21 @@
+{{/* Modello riempito da Caddy (templates): italiano se il browser preferisce l'italiano, altrimenti inglese. */}}
+{{- $it := hasPrefix "it" (lower (.Req.Header.Get "Accept-Language")) -}}
 <!doctype html>
-<html lang="it">
+<html lang="{{if $it}}it{{else}}en{{end}}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ShareBox</title>
+{{- if $it}}
   <meta name="description" content="Pubblica e condividi piccoli tool web creati con agenti AI, come si condivide un documento.">
+{{- else}}
+  <meta name="description" content="Publish and share small web tools built by AI agents, as easily as sharing a document.">
+{{- end}}
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
   <main>
+{{- if $it}}
     <p class="top"><a class="accedi" href="/app">Accedi</a></p>
     <h1>ShareBox</h1>
     <p class="lead">Pubblica e condividi piccoli tool web creati con agenti AI, semplice come condividere un documento.</p>
@@ -26,6 +33,25 @@
     <footer>
       <a href="/app">Dashboard</a> · <a href="/privacy">Informativa privacy</a>
     </footer>
+{{- else}}
+    <p class="top"><a class="accedi" href="/app">Sign in</a></p>
+    <h1>ShareBox</h1>
+    <p class="lead">Publish and share small web tools built by AI agents, as easily as sharing a document.</p>
+
+    <h2>How it works</h2>
+    <ul>
+      <li>An AI agent builds a tool, for example a vacation tracker, and publishes it with one command.</li>
+      <li>The tool gets its own address and stays private until its creator shares it: with specific people, with a whole company domain or with anyone who has the link.</li>
+      <li>People opening the tool sign in with their Google account. The tool receives the user's name and email and stores its data in a space reserved to it alone.</li>
+    </ul>
+
+    <h2>Access</h2>
+    <p>ShareBox is a private service: only invited people can publish tools. If you received a link to a tool, open it and sign in with Google.</p>
+
+    <footer>
+      <a href="/app">Dashboard</a> · <a href="/privacy">Privacy policy</a>
+    </footer>
+{{- end}}
   </main>
 </body>
 </html>

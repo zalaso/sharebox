@@ -5,7 +5,8 @@
 import { existsSync } from "node:fs";
 import { readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
-import { BUNDLE_LIMITS, pathProblem } from "@sharebox/shared";
+import { BUNDLE_LIMITS, describePathProblem, pathProblem } from "@sharebox/shared";
+import { lang, m } from "./i18n";
 
 export const MANIFEST = "sharebox.json";
 const WORKER_ENTRIES = ["worker.ts", "worker.js", "worker.mjs", "src/worker.ts", "src/worker.js"];
@@ -23,7 +24,7 @@ export async function readManifest(dir: string): Promise<Manifest> {
   try {
     return JSON.parse(await readFile(file, "utf8")) as Manifest;
   } catch {
-    throw new ProjectError(`${file} non è un JSON valido`);
+    throw new ProjectError(m("invalid_json", { file }));
   }
 }
 
@@ -54,16 +55,16 @@ export async function collectPublic(dir: string): Promise<PublicFiles> {
       }
       const path = relative(root, full).split(sep).join("/");
       const problem = pathProblem(path);
-      if (problem) throw new ProjectError(`public/${path}: ${problem}. Rinomina il file (lettere, cifre, . _ -).`);
+      if (problem) throw new ProjectError(m("bad_file_name", { path, problem: describePathProblem(problem, lang()) }));
       const content = await readFile(full);
       result.files[path] = content.toString("base64");
       result.count += 1;
       result.bytes += content.byteLength;
-      if (result.count > BUNDLE_LIMITS.maxFiles) throw new ProjectError(`Troppi file in public/ (massimo ${BUNDLE_LIMITS.maxFiles})`);
-      if (result.bytes > BUNDLE_LIMITS.maxBytes) throw new ProjectError(`public/ supera ${BUNDLE_LIMITS.maxBytes / 1024 / 1024} MB`);
+      if (result.count > BUNDLE_LIMITS.maxFiles) throw new ProjectError(m("too_many_files", { max: BUNDLE_LIMITS.maxFiles }));
+      if (result.bytes > BUNDLE_LIMITS.maxBytes) throw new ProjectError(m("too_big", { mb: BUNDLE_LIMITS.maxBytes / 1024 / 1024 }));
     }
   }
-  if (!(await stat(root)).isDirectory()) throw new ProjectError(`${root} non è una cartella`);
+  if (!(await stat(root)).isDirectory()) throw new ProjectError(m("not_a_folder", { path: root }));
   await walk(root);
   return result;
 }
@@ -92,6 +93,6 @@ export async function bundleWorker(entry: string): Promise<string> {
   } catch (error) {
     const messages = (error as { errors?: { text: string; location?: { file: string; line: number } }[] }).errors;
     const detail = messages?.map((m) => (m.location ? `${m.location.file}:${m.location.line} ${m.text}` : m.text)).join("\n");
-    throw new ProjectError(`Il worker non si compila:\n${detail ?? String(error)}`);
+    throw new ProjectError(m("worker_build_failed", { detail: detail ?? String(error) }));
   }
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BUNDLE_LIMITS, bundleProblem, pathProblem } from "../src/bundle";
+import { BUNDLE_LIMITS, bundleProblem, describeBundleProblem, pathProblem } from "../src/bundle";
 
 describe("pathProblem", () => {
   it.each(["public/index.html", "public/img/logo-2.png", "_sharebox/entry.js", "a.b_c-d"])("accetta %s", (path) => {
@@ -30,13 +30,15 @@ describe("bundleProblem", () => {
   });
 
   it("rifiuta un insieme vuoto, troppi file o troppi byte", () => {
-    expect(bundleProblem(new Map())).toMatch(/nessun file/);
+    expect(bundleProblem(new Map())).toEqual({ code: "empty" });
     const many = new Map(Array.from({ length: BUNDLE_LIMITS.maxFiles + 1 }, (_, i) => [`f${i}`, file(1)] as const));
-    expect(bundleProblem(many)).toMatch(/troppi file/);
-    expect(bundleProblem(new Map([["grande", file(BUNDLE_LIMITS.maxBytes + 1)]]))).toMatch(/dimensione/);
+    expect(bundleProblem(many)).toEqual({ code: "too_many_files" });
+    expect(bundleProblem(new Map([["grande", file(BUNDLE_LIMITS.maxBytes + 1)]]))).toEqual({ code: "too_big" });
   });
 
-  it("segnala il file con il percorso non valido", () => {
-    expect(bundleProblem(new Map([["../x", file()]]))).toMatch(/^\.\.\/x:/);
+  it("segnala il file con il percorso non valido, in italiano e in inglese", () => {
+    const problem = bundleProblem(new Map([["foto vacanze.png", file()]]))!;
+    expect(describeBundleProblem(problem, "it")).toBe('foto vacanze.png: caratteri non ammessi in "foto vacanze.png" (solo lettere, cifre, . _ -)');
+    expect(describeBundleProblem(problem, "en")).toBe('foto vacanze.png: characters not allowed in "foto vacanze.png" (letters, digits, . _ - only)');
   });
 });

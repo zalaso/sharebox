@@ -1,17 +1,20 @@
-{{/* Modello riempito da Caddy (templates) con i dati di deploy/.env: OPERATOR_NAME, OPERATOR_EMAIL, HOSTING_DESCRIPTION, OFFSITE_BACKUP. */}}
+{{/* Modello riempito da Caddy (templates) con i dati di deploy/.env: OPERATOR_NAME, OPERATOR_EMAIL, HOSTING_DESCRIPTION, OFFSITE_BACKUP.
+     Italiano se il browser preferisce l'italiano, altrimenti inglese. */}}
+{{- $it := hasPrefix "it" (lower (.Req.Header.Get "Accept-Language")) -}}
 <!doctype html>
-<html lang="it">
+<html lang="{{if $it}}it{{else}}en{{end}}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Informativa privacy — ShareBox</title>
+  <title>{{if $it}}Informativa privacy{{else}}Privacy policy{{end}} — ShareBox</title>
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
   <main>
     <p><a href="/">ShareBox</a></p>
+{{- if $it}}
     <h1>Informativa privacy</h1>
-    <p class="meta">Ultimo aggiornamento: 3 ottobre 2026</p>
+    <p class="meta">Ultimo aggiornamento: 6 ottobre 2026</p>
 
     <h2>Chi gestisce ShareBox</h2>
     <p>Questa istanza di ShareBox è gestita da {{html (env "OPERATOR_NAME")}}, titolare del trattamento dei dati descritti in questa pagina. Contatto: <a href="mailto:{{html (env "OPERATOR_EMAIL")}}">{{html (env "OPERATOR_EMAIL")}}</a>.</p>
@@ -55,6 +58,53 @@
 
     <h2>Modifiche</h2>
     <p>Se questa informativa cambia, la data in alto viene aggiornata.</p>
+{{- else}}
+    <h1>Privacy policy</h1>
+    <p class="meta">Last updated: 6 October 2026</p>
+
+    <h2>Who runs ShareBox</h2>
+    <p>This ShareBox instance is run by {{html (env "OPERATOR_NAME")}}, the controller of the data described on this page. Contact: <a href="mailto:{{html (env "OPERATOR_EMAIL")}}">{{html (env "OPERATOR_EMAIL")}}</a>.</p>
+
+    <h2>What data we process</h2>
+    <ul>
+      <li><strong>Google account data</strong>, received when you sign in with Google: name, email address, account identifier and, for Google Workspace business accounts, the organization's domain. We don't ask for access to any other data in your Google account (mail, files, contacts, calendar).</li>
+      <li><strong>Session cookies</strong>, technical and needed to keep you signed in. We don't use profiling, advertising or analytics cookies.</li>
+      <li><strong>Data entered in tools</strong>: what you write in a tool is stored in that tool's data space.</li>
+      <li><strong>Activity log</strong>: for security we record who publishes, changes, shares or deletes a tool, with date and time.</li>
+      <li><strong>Technical logs</strong> of server errors and operation, which may include IP addresses.</li>
+    </ul>
+
+    <h2>Why we process it</h2>
+    <ul>
+      <li>To let you open the tools shared with you and check that you are allowed to.</li>
+      <li>To make tools work: each tool receives your name and email, so it can show you your data.</li>
+      <li>For the security of the service and to detect abuse or malfunctions.</li>
+    </ul>
+    <p>The legal basis is the performance of the service you request when you open a tool, and the legitimate interest in keeping the platform secure.</p>
+
+    <h2>Data entered in tools</h2>
+    <p>Each tool is created and managed by a person (the tool's creator), who decides what data it collects and who to share it with. For the data you enter in a tool, the tool's creator is the controller and ShareBox stores it on their behalf. For questions about that data, contact whoever shared the tool with you.</p>
+    <p>Each tool's data is kept separate from other tools: a tool cannot read another tool's data.</p>
+
+    <h2>Where it is stored</h2>
+    <p>{{html (env "HOSTING_DESCRIPTION")}}.{{if eq (env "OFFSITE_BACKUP") "google-drive"}} A daily backup copy, encrypted before it leaves the server, is kept for 30 days on Google Drive (Google): without the keys, which stay with the operator, its content cannot be read.{{end}} We don't sell data, use it for advertising or pass it to third parties, except where required by law.</p>
+
+    <h2>How long</h2>
+    <ul>
+      <li>Your account data stays as long as you use ShareBox; you can ask for it to be deleted at any time.</li>
+      <li>A tool's data is deleted when its creator deletes the tool.</li>
+      <li>The activity log and technical logs are kept as long as needed for the security of the service.</li>
+    </ul>
+
+    <h2>Use of data received from Google</h2>
+    <p>Use and transfer to any other app of information received from Google APIs will adhere to the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the Limited Use requirements.</p>
+
+    <h2>Your rights</h2>
+    <p>You can ask to access, correct or delete your data, restrict or object to its processing, or receive a copy of it, by writing to <a href="mailto:{{html (env "OPERATOR_EMAIL")}}">{{html (env "OPERATOR_EMAIL")}}</a>. You can also lodge a complaint with your data protection authority (in Italy, the Garante per la protezione dei dati personali, <a href="https://www.garanteprivacy.it">garanteprivacy.it</a>).</p>
+
+    <h2>Changes</h2>
+    <p>If this policy changes, the date at the top is updated.</p>
+{{- end}}
   </main>
 </body>
 </html>

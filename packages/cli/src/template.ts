@@ -2,16 +2,24 @@
 import { existsSync } from "node:fs";
 import { mkdir, readdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
+import type { Lang } from "@sharebox/shared";
+import { lang, m } from "./i18n";
 import { ProjectError, writeManifest } from "./project";
+
+// Testi della pagina di esempio, nella lingua di chi crea il tool.
+const EXAMPLE: Record<Lang, { placeholder: string; add: string; remove: string; hello: string; comment: string }> = {
+  it: { placeholder: "Nuova voce", add: "Aggiungi", remove: "Elimina", hello: "Ciao ", comment: "Esempio da sostituire: una lista condivisa. Guida completa: sharebox guide." },
+  en: { placeholder: "New item", add: "Add", remove: "Delete", hello: "Hi ", comment: "Example to replace: a shared list. Full guide: sharebox guide." },
+};
 
 export async function initProject(dir: string, name: string): Promise<string> {
   const folder = resolve(dir);
   if (existsSync(folder) && (await readdir(folder)).length > 0) {
-    throw new ProjectError(`${folder} non è vuota: scegli una cartella nuova`);
+    throw new ProjectError(m("folder_not_empty", { folder }));
   }
   await mkdir(join(folder, "public"), { recursive: true });
   await writeManifest(folder, { name });
-  await writeFile(join(folder, "public", "index.html"), indexHtml(name));
+  await writeFile(join(folder, "public", "index.html"), indexHtml(name, lang()));
   return folder;
 }
 
@@ -19,9 +27,10 @@ function escapeHtml(value: string): string {
   return value.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 }
 
-function indexHtml(name: string): string {
+function indexHtml(name: string, language: Lang): string {
+  const text = EXAMPLE[language];
   return `<!doctype html>
-<html lang="it">
+<html lang="${language}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -45,14 +54,14 @@ function indexHtml(name: string): string {
     <h1>${escapeHtml(name)}</h1>
     <p class="muted" id="chi">…</p>
     <form id="nuova">
-      <input id="testo" required placeholder="Nuova voce" autocomplete="off">
-      <button>Aggiungi</button>
+      <input id="testo" required placeholder="${text.placeholder}" autocomplete="off">
+      <button>${text.add}</button>
     </form>
     <ul id="voci"></ul>
   </main>
   <script src="/__sharebox/sdk.js"></script>
   <script>
-    // Esempio da sostituire: una lista condivisa. Guida completa: sharebox guide.
+    // ${text.comment}
     const voci = sharebox.collection("voci");
 
     async function mostra() {
@@ -63,7 +72,7 @@ function indexHtml(name: string): string {
         li.textContent = r.data.testo + " — " + (r.owner.name || r.owner.email);
         if (r.canEdit) {
           const elimina = document.createElement("button");
-          elimina.textContent = "Elimina";
+          elimina.textContent = ${JSON.stringify(text.remove)};
           elimina.onclick = () => voci.remove(r.id).then(mostra, (e) => alert(e.message));
           li.append(elimina);
         }
@@ -81,7 +90,7 @@ function indexHtml(name: string): string {
       } catch (e) { alert(e.message); }
     });
 
-    sharebox.me().then((io) => { document.getElementById("chi").textContent = "Ciao " + (io.name || io.email); });
+    sharebox.me().then((io) => { document.getElementById("chi").textContent = ${JSON.stringify(text.hello)} + (io.name || io.email); });
     mostra().catch((e) => alert(e.message));
   </script>
 </body>

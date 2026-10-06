@@ -5,6 +5,7 @@ import { randomBytes } from "node:crypto";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { hostname } from "node:os";
+import { lang, m } from "./i18n";
 
 export function openInBrowser(url: string): void {
   const [command, args] =
@@ -39,15 +40,15 @@ export function browserLogin(baseUrl: string, options: LoginOptions = {}): Promi
       }
       const token = url.searchParams.get("token");
       if (url.searchParams.get("state") !== state || !token) {
-        res.writeHead(400, { "content-type": "text/plain; charset=utf-8" }).end("Login non valido: riprova con sharebox login.");
+        res.writeHead(400, { "content-type": "text/plain; charset=utf-8" }).end(m("login_invalid"));
         return;
       }
       res
         .writeHead(200, { "content-type": "text/html; charset=utf-8" })
-        .end(`<!doctype html><meta charset="utf-8"><title>ShareBox</title><body style="font:17px system-ui;max-width:30rem;margin:4rem auto"><h1>Fatto</h1><p>La CLI di ShareBox è collegata. Puoi chiudere questa finestra e tornare al terminale.</p>`);
+        .end(`<!doctype html><html lang="${lang()}"><meta charset="utf-8"><title>ShareBox</title><body style="font:17px system-ui;max-width:30rem;margin:4rem auto"><h1>${m("login_done_title")}</h1><p>${m("login_done_body")}</p>`);
       finish(null, token);
     });
-    const timer = setTimeout(() => finish(new Error("Login non completato entro 5 minuti: riprova con sharebox login")), timeoutMs);
+    const timer = setTimeout(() => finish(new Error(m("login_timeout"))), timeoutMs);
 
     function finish(error: Error | null, token?: string): void {
       clearTimeout(timer);
