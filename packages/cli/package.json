@@ -1,6 +1,7 @@
 {
   "name": "sharebox-cli",
-  "version": "0.1.0",
+  "version": "0.1.1",
+  "mcpName": "io.github.zalaso/sharebox",
   "license": "AGPL-3.0-or-later",
   "description": "CLI and MCP server for ShareBox: publish the web tools your AI agents build and share them like a Google Doc",
   "keywords": [

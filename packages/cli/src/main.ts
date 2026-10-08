@@ -9,7 +9,7 @@ import { ProjectError } from "./project";
 import { describeGrant, describeRole, formatBytes, parseRole, parseTarget, publish, resolveTool } from "./operations";
 import { initProject } from "./template";
 
-export const VERSION = "0.1.0";
+export const VERSION = "0.1.1";
 
 const HELP = {
   it: `ShareBox ${VERSION} — pubblica e condividi tool web

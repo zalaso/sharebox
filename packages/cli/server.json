@@ -1,0 +1,42 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.zalaso/sharebox",
+  "title": "ShareBox",
+  "description": "Publish the web tools your agent builds to a self-hosted ShareBox and share them like a Google Doc",
+  "repository": {
+    "url": "https://github.com/zalaso/sharebox",
+    "source": "github",
+    "subfolder": "packages/cli"
+  },
+  "websiteUrl": "https://github.com/zalaso/sharebox",
+  "version": "0.1.1",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "sharebox-cli",
+      "version": "0.1.1",
+      "transport": {
+        "type": "stdio"
+      },
+      "packageArguments": [
+        {
+          "type": "positional",
+          "value": "mcp"
+        }
+      ],
+      "environmentVariables": [
+        {
+          "name": "SHAREBOX_URL",
+          "description": "Address of your ShareBox instance, e.g. https://sharebox.example.com (not needed after `sharebox login`)",
+          "isRequired": false
+        },
+        {
+          "name": "SHAREBOX_TOKEN",
+          "description": "API token for that instance (not needed after `sharebox login`)",
+          "isRequired": false,
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}
