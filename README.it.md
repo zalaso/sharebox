@@ -10,7 +10,7 @@
 
 [English](README.md) · **Italiano**
 
-<img src="docs/img/dashboard.png" alt="Dashboard di ShareBox" width="760">
+<img src="docs/img/demo.gif" alt="Si pubblica con un comando, si condivide come un documento, tutti accedono con Google, la revoca vale subito" width="760">
 
 </div>
 
@@ -35,6 +35,8 @@ ShareBox è **self-hosted**: installi la tua istanza su un piccolo server Linux,
 - **Dashboard web** per condivisione, stato, log, attività, sospensione ed eliminazione, con i comandi pronti da copiare per collegare computer e agenti.
 - **Backup giornalieri**, anche con copia cifrata su Google Drive.
 - **Costa poco**: gira su una VPS da circa 4 €/mese; il dominio dei tool può essere un sottodominio DuckDNS gratuito.
+
+<img src="docs/img/dashboard.png" alt="Dashboard di ShareBox" width="640">
 
 <img src="docs/img/dashboard-tool.png" alt="Dettaglio di un tool: condivisione, stato, log e attività" width="640">
 
