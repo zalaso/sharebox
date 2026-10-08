@@ -67,6 +67,8 @@ The dashboard shows these commands with your instance's address filled in (*How 
 npm install -g https://<platform>/cli/sharebox.tgz
 ```
 
+(The same CLI is on npm as `sharebox-cli`; the copy served by your instance always matches its version.)
+
 ```bash
 sharebox login <platform>
 ```

@@ -65,11 +65,13 @@ git clone https://github.com/zalaso/sharebox /opt/sharebox && cd /opt/sharebox &
 
 L'installatore configura Docker e gVisor, chiede domini e credenziali (i segreti non vengono mostrati), controlla DNS, porte e firewall, costruisce tutto dal codice sorgente, avvia i servizi e programma i backup notturni.
 
-Poi, sul tuo computer (Node 20 o più recente), installa la CLI **dalla tua istanza** e collegala: si apre il browser per confermare.
+Poi, sul tuo computer (Node 20 o più recente), installa la CLI e collegala: si apre il browser per confermare.
 
 ```bash
-npm install -g https://sharebox.esempio.it/cli/sharebox.tgz
+npm install -g sharebox-cli
 ```
+
+(Ogni istanza distribuisce anche una copia allineata alla propria versione: `npm install -g https://sharebox.esempio.it/cli/sharebox.tgz`.)
 
 ```bash
 sharebox login sharebox.esempio.it

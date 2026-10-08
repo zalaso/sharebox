@@ -1,9 +1,26 @@
 {
-  "name": "@sharebox/cli",
+  "name": "sharebox-cli",
   "version": "0.1.0",
   "license": "AGPL-3.0-or-later",
-  "private": true,
-  "description": "Pubblica e condividi tool su ShareBox, da terminale o da un agente (MCP)",
+  "description": "CLI and MCP server for ShareBox: publish the web tools your AI agents build and share them like a Google Doc",
+  "keywords": [
+    "sharebox",
+    "mcp",
+    "mcp-server",
+    "model-context-protocol",
+    "claude-code",
+    "ai-agents",
+    "self-hosted",
+    "cli"
+  ],
+  "homepage": "https://github.com/zalaso/sharebox#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zalaso/sharebox.git",
+    "directory": "packages/cli"
+  },
+  "bugs": "https://github.com/zalaso/sharebox/issues",
+  "author": "Guido Marmorini",
   "type": "module",
   "engines": {
     "node": ">=20"
@@ -14,6 +31,9 @@
   "files": [
     "dist"
   ],
+  "scripts": {
+    "prepack": "cd ../.. && npm run build:cli && node -e \"require('fs').copyFileSync('LICENSE', 'packages/cli/LICENSE')\""
+  },
   "dependencies": {
     "esbuild": "^0.28.2"
   },

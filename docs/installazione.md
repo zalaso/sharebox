@@ -52,6 +52,8 @@ La dashboard mostra questi comandi già completi dell'indirizzo della tua istanz
 npm install -g https://<piattaforma>/cli/sharebox.tgz
 ```
 
+(La stessa CLI è su npm come `sharebox-cli`; la copia servita dalla tua istanza è sempre allineata alla sua versione.)
+
 ```bash
 sharebox login <piattaforma>
 ```

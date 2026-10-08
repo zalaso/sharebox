@@ -11,3 +11,4 @@ deploy/platform/dashboard/
 # Dati di un'installazione (sul server)
 /data/
 /backups/
+packages/cli/LICENSE

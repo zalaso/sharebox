@@ -3,13 +3,19 @@
 Un solo comando, `sharebox`, per le persone (terminale) e per gli agenti (server MCP). Sorgenti in `packages/cli`.
 
 ## Installazione
-Ogni istanza distribuisce la propria CLI (serve Node 20 o più recente):
+Serve Node 20 o più recente. La CLI è su npm come [`sharebox-cli`](https://www.npmjs.com/package/sharebox-cli):
+
+```bash
+npm install -g sharebox-cli
+```
+
+Ogni istanza distribuisce anche la propria copia, sempre allineata alla versione del server:
 
 ```bash
 npm install -g https://<istanza>/cli/sharebox.tgz
 ```
 
-La dashboard mostra il comando con l'indirizzo già completo (sezione *Come collegare un computer o un agente*, in inglese *How to connect a computer or an agent*). Per aggiornare la CLI basta ripetere il comando.
+La dashboard mostra questo secondo comando con l'indirizzo già completo (sezione *Come collegare un computer o un agente*, in inglese *How to connect a computer or an agent*). Per aggiornare la CLI basta ripetere il comando.
 
 Per lo sviluppo, dalla cartella del repository: `npm install && npm run build:cli && npm install -g ./packages/cli` (il comando punta ai file del repository: dopo ogni `npm run build:cli` è già aggiornato).
 
