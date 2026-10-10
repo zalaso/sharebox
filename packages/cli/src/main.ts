@@ -10,7 +10,7 @@ import { ProjectError } from "./project";
 import { describeGrant, describeRole, formatBytes, parseRole, parseTarget, publish, resolveTool } from "./operations";
 import { initProject } from "./template";
 
-export const VERSION = "0.1.3";
+export const VERSION = "0.1.4";
 
 const HELP = {
   it: `ShareBox ${VERSION} — pubblica e condividi tool web
@@ -28,6 +28,7 @@ const HELP = {
   sharebox share <tool> <con> [--role use|manage]
                                           con: email, @dominio.it oppure chiunque
   sharebox unshare <tool> <con>           toglie una condivisione
+  sharebox rollback <tool>                torna alla versione precedente (rifarlo annulla)
   sharebox delete <tool> --yes            elimina tool e dati, senza ritorno
   sharebox guide                          istruzioni per costruire un tool (per agenti)
   sharebox mcp                            server MCP su stdio, per gli agenti
@@ -50,6 +51,7 @@ Variabili: SHAREBOX_URL, SHAREBOX_TOKEN, SHAREBOX_LANG (it oppure en).`,
   sharebox share <tool> <with> [--role use|manage]
                                           with: email, @domain.com or anyone
   sharebox unshare <tool> <with>          remove a share
+  sharebox rollback <tool>                go back to the previous version (run again to undo)
   sharebox delete <tool> --yes            delete the tool and its data, for good
   sharebox guide                          how to build a tool (for agents)
   sharebox mcp                            MCP server on stdio, for agents
@@ -203,6 +205,14 @@ export async function main(argv: string[]): Promise<number> {
       const target = parseTarget(need(args[1], "what_unshare_target"));
       const tool = await client.unshare(id, target);
       print(m("unshared", { name: tool.name, who: describeGrant(target) }), tool);
+      return 0;
+    }
+
+    case "rollback": {
+      const client = await authenticatedClient();
+      const ref = need(args[0], "what_tool");
+      const tool = await client.rollback(await resolveTool(client, ref));
+      print(m("rolled_back", { name: tool.name, version: tool.version ?? "-", ref }), tool);
       return 0;
     }
 

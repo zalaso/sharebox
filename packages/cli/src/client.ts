@@ -67,6 +67,10 @@ export class ShareboxClient {
     return this.call<ToolInfo>("DELETE", `/api/tools/${id}/grants`, grant);
   }
 
+  rollback(id: string) {
+    return this.call<ToolInfo>("POST", `/api/tools/${id}/rollback`);
+  }
+
   deleteTool(id: string) {
     return this.call<{ deleted: string }>("DELETE", `/api/tools/${id}`);
   }

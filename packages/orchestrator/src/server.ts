@@ -4,6 +4,7 @@
 //   DELETE /tools/<id>
 //   GET    /tools/<id>/status | /tools/<id>/logs?tail=<n>
 //   POST   /tools/<id>/stop | /tools/<id>/start
+//   POST   /tools/<id>/rollback       { from, to, start, entry: "<base64>" }
 //   POST   /sync
 //   POST   /refresh                    ricrea i container superati dopo un aggiornamento
 import { timingSafeEqual } from "node:crypto";
@@ -45,6 +46,13 @@ async function handle(req: IncomingMessage): Promise<{ status: number; body: obj
   const tool = /^\/tools\/([^/]+)$/.exec(path);
   if (req.method === "DELETE" && tool) {
     await orchestrator.remove(tool[1]!);
+    return { status: 200, body: { ok: true } };
+  }
+  const rollback = /^\/tools\/([^/]+)\/rollback$/.exec(path);
+  if (req.method === "POST" && rollback) {
+    const { from, to, start, entry } = (await readJson(req)) as { from?: unknown; to?: unknown; start?: unknown; entry?: unknown };
+    if (typeof entry !== "string" || !entry) throw new InvalidRequest("manca il runtime (entry)");
+    await orchestrator.rollback(rollback[1]!, Number(from), Number(to), start !== false, Buffer.from(entry, "base64"));
     return { status: 200, body: { ok: true } };
   }
   const action = /^\/tools\/([^/]+)\/(status|logs|stop|start)$/.exec(path);

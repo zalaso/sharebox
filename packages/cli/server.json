@@ -9,12 +9,12 @@
     "subfolder": "packages/cli"
   },
   "websiteUrl": "https://github.com/zalaso/sharebox",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "sharebox-cli",
-      "version": "0.1.3",
+      "version": "0.1.4",
       "transport": {
         "type": "stdio"
       },

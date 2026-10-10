@@ -17,6 +17,8 @@ export interface Orchestrator {
   /** `files`: percorso → contenuto in base64, già completi dei file della piattaforma. */
   deploy(toolId: string, version: number, files: Record<string, string>): Promise<void>;
   remove(toolId: string): Promise<void>;
+  /** Ripubblica i file della versione `from` come versione `to`, con il runtime `entry` (base64). */
+  rollback(toolId: string, from: number, to: number, start: boolean, entry: string): Promise<void>;
   sync(): Promise<number>;
   status(toolId: string): Promise<ToolStatus>;
   logs(toolId: string, tail: number): Promise<LogLine[]>;
@@ -54,6 +56,9 @@ export function httpOrchestrator(baseUrl: string, token: string, fetchFn: typeof
     },
     remove: async (toolId) => {
       await call("DELETE", `/tools/${toolId}`);
+    },
+    rollback: async (toolId, from, to, start, entry) => {
+      await call("POST", `/tools/${toolId}/rollback`, { from, to, start, entry });
     },
     sync: async () => Number((await call("POST", "/sync")).networks ?? 0),
     status: async (toolId) => (await call("GET", `/tools/${toolId}/status`)) as unknown as ToolStatus,

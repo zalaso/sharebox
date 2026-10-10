@@ -93,6 +93,13 @@ export const TOOLS = [
     annotations: { title: "Share a tool", readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
   },
   {
+    name: "sharebox_rollback",
+    description:
+      "Go back to the previous version of a tool, e.g. when the last publish broke it. The previous files are published again as a new version: same link, stored data unchanged. Calling it again undoes the rollback.",
+    inputSchema: { type: "object", properties: { tool: { type: "string", description: TOOL_REF } }, required: ["tool"] },
+    annotations: { title: "Roll back a tool", readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
+  },
+  {
     name: "sharebox_unshare",
     description: "Remove a share. Takes effect immediately.",
     inputSchema: {
@@ -183,6 +190,11 @@ export function createMcpHandler(deps: McpDeps) {
         const id = await resolveTool(client, text("tool"));
         const tool = await client.share(id, target, role);
         return `${m("mcp_shared", { who: describeGrant(target), role: describeRole(role) })}\n\n${describeTool(tool)}`;
+      }
+      case "sharebox_rollback": {
+        const client = await deps.client();
+        const tool = await client.rollback(await resolveTool(client, text("tool")));
+        return `${m("mcp_rolled_back", { version: tool.version ?? "-" })}\n\n${describeTool(tool)}`;
       }
       case "sharebox_unshare": {
         const target = parseTarget(text("with"));

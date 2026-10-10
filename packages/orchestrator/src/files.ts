@@ -1,5 +1,6 @@
 // File dei tool sul disco del server: <toolsDir>/<id>/v<versione>/…
-import { mkdir, readdir, rm, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { cp, mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve, sep } from "node:path";
 import { bundleProblem, describeBundleProblem } from "@sharebox/shared";
 import { InvalidRequest } from "./spec";
@@ -26,6 +27,20 @@ export async function writeVersion(toolsDir: string, id: string, version: number
   // workerd non parte se manca la cartella degli asset (deploy/runtime/config.capnp), anche per i tool fatti solo di worker.
   await mkdir(join(root, "public"), { recursive: true, mode: 0o755 });
   return root;
+}
+
+/**
+ * Rollback: la versione `to` è una copia di `from`, ma con il runtime della piattaforma attuale
+ * (`_sharebox/entry.js`): si ripristinano i file del tool, non codice vecchio della piattaforma.
+ */
+export async function copyVersion(toolsDir: string, id: string, from: number, to: number, entry: Uint8Array): Promise<void> {
+  const source = resolve(versionDir(toolsDir, id, from));
+  if (!existsSync(source)) throw new InvalidRequest(`versione ${from} non più disponibile`);
+  const target = resolve(versionDir(toolsDir, id, to));
+  await rm(target, { recursive: true, force: true });
+  await cp(source, target, { recursive: true });
+  await mkdir(join(target, "_sharebox"), { recursive: true, mode: 0o755 });
+  await writeFile(join(target, "_sharebox", "entry.js"), entry, { mode: 0o644 });
 }
 
 /** Tiene solo le versioni indicate (la corrente e la precedente, per il rollback). */

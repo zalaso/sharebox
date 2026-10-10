@@ -37,6 +37,13 @@ export function fakePlatform() {
       tool.version = (tool.version ?? 0) + 1;
       return ok(tool);
     }
+    const rollback = /^\/api\/tools\/(\w+)\/rollback$/.exec(path);
+    if (rollback && init.method === "POST") {
+      const tool = tools.get(rollback[1]!);
+      if (!tool || (tool.version ?? 0) < 2) return Response.json({ error: "Non c'è una versione precedente a cui tornare" }, { status: 400 });
+      tool.version = tool.version! + 1;
+      return ok(tool);
+    }
     const grants = /^\/api\/tools\/(\w+)\/grants$/.exec(path);
     if (grants) {
       const tool = tools.get(grants[1]!)!;

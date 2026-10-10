@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -14,7 +14,7 @@ class FakeDocker implements Docker {
 
   imageId = "sha256:nuova";
   layers = ["sha256:strato-a", "sha256:strato-b"];
-  toolContainers: { State: string; Labels: Record<string, string> }[] = [];
+  toolContainers: { Names?: string[]; State: string; Labels: Record<string, string> }[] = [];
 
   image() {
     return { Id: this.imageId, RootFS: { Type: "layers", Layers: this.layers }, Config: { Cmd: ["workerd", "serve"] } };
@@ -41,6 +41,7 @@ class FakeDocker implements Docker {
     if (method === "GET" && /^\/containers\/[^/]+\/json$/.test(path)) return this.containerState;
     if (method === "POST" && /\/(stop(\?.*)?|start)$/.test(path)) return { status: 204, body: null };
     if (method === "POST" && path.startsWith("/containers/create")) return { status: 201, body: { Id: "c1" } };
+    if (method === "POST" && path.includes("/rename?name=")) return { status: 204, body: null };
     if (method === "POST" && path.endsWith("/start")) return { status: 204, body: null };
     if (method === "POST" && net?.[2] === "/disconnect") {
       // Come Docker: se il collegamento non c'è, 500 "is not connected".
@@ -93,8 +94,11 @@ describe("deploy", () => {
       "POST /networks/sbx-tool-abc/connect",
       "POST /volumes/create",
       "GET /images/sharebox-runtime%3Alatest/json",
+      // Il container nuovo si prepara mentre quello vecchio serve ancora.
+      "DELETE /containers/sharebox-tool-abc-next?force=true",
+      "POST /containers/create?name=sharebox-tool-abc-next",
       "DELETE /containers/sharebox-tool-abc?force=true",
-      "POST /containers/create?name=sharebox-tool-abc",
+      "POST /containers/sharebox-tool-abc-next/rename?name=sharebox-tool-abc",
       "POST /containers/sharebox-tool-abc/start",
     ]);
     const create = docker.calls.find((c) => c.path.startsWith("/containers/create"))!;
@@ -125,12 +129,51 @@ describe("deploy", () => {
   });
 });
 
+describe("rollback", () => {
+  const withEntry = (html: string, entry: string) =>
+    new Map([
+      ["public/index.html", new TextEncoder().encode(html)],
+      ["_sharebox/entry.js", new TextEncoder().encode(entry)],
+    ]);
+
+  it("ripubblica i file della versione precedente come versione nuova, con il runtime attuale", async () => {
+    await orchestrator.deploy("abc", 1, withEntry("prima", "runtime vecchio"));
+    await orchestrator.deploy("abc", 2, withEntry("seconda", "runtime vecchio"));
+    docker.calls = [];
+    await orchestrator.rollback("abc", 1, 3, true, new TextEncoder().encode("runtime attuale"));
+
+    expect(await readFile(join(dir, "abc", "v3", "public", "index.html"), "utf8")).toBe("prima");
+    expect(await readFile(join(dir, "abc", "v3", "_sharebox", "entry.js"), "utf8")).toBe("runtime attuale");
+    // Resta la versione da cui si torna indietro, così il rollback si può annullare.
+    expect((await readdir(join(dir, "abc"))).sort()).toEqual(["v2", "v3"]);
+    const created = docker.calls.find((c) => c.path.startsWith("/containers/create"))!.body as { Labels: Record<string, string> };
+    expect(created.Labels["sharebox.version"]).toBe("3");
+    expect(docker.paths().at(-1)).toBe("POST /containers/sharebox-tool-abc/start");
+  });
+
+  it("su un tool sospeso prepara la versione ma non lo avvia", async () => {
+    await orchestrator.deploy("abc", 1, files);
+    await orchestrator.deploy("abc", 2, files);
+    docker.calls = [];
+    await orchestrator.rollback("abc", 1, 3, false, new TextEncoder().encode("x"));
+    expect(docker.paths().some((p) => p.endsWith("/start"))).toBe(false);
+  });
+
+  it("rifiuta una versione che non è più su disco, senza toccare il container", async () => {
+    await orchestrator.deploy("abc", 3, files);
+    docker.calls = [];
+    await expect(orchestrator.rollback("abc", 1, 4, true, new TextEncoder().encode("x"))).rejects.toThrow(/non più disponibile/);
+    expect(docker.calls).toHaveLength(0);
+  });
+});
+
 describe("remove e sync", () => {
   it("elimina container, rete, volume e file", async () => {
     await orchestrator.deploy("abc", 1, files);
     docker.calls = [];
     await orchestrator.remove("abc");
     expect(docker.paths()).toEqual([
+      "DELETE /containers/sharebox-tool-abc-next?force=true",
       "DELETE /containers/sharebox-tool-abc?force=true",
       "POST /networks/sbx-tool-abc/disconnect",
       "DELETE /networks/sbx-tool-abc",
@@ -174,13 +217,17 @@ describe("refreshAll", () => {
     const result = await orchestrator.refreshAll();
     expect(result).toEqual({ refreshed: ["vecchio", "sospeso"], upToDate: 1, failed: [] });
     expect(docker.paths().filter((p) => !p.startsWith("GET"))).toEqual([
+      "DELETE /containers/sharebox-tool-vecchio-next?force=true",
+      "POST /containers/create?name=sharebox-tool-vecchio-next",
       "DELETE /containers/sharebox-tool-vecchio?force=true",
-      "POST /containers/create?name=sharebox-tool-vecchio",
+      "POST /containers/sharebox-tool-vecchio-next/rename?name=sharebox-tool-vecchio",
       "POST /containers/sharebox-tool-vecchio/start",
+      "DELETE /containers/sharebox-tool-sospeso-next?force=true",
+      "POST /containers/create?name=sharebox-tool-sospeso-next",
       "DELETE /containers/sharebox-tool-sospeso?force=true",
-      "POST /containers/create?name=sharebox-tool-sospeso",
+      "POST /containers/sharebox-tool-sospeso-next/rename?name=sharebox-tool-sospeso",
     ]);
-    const created = docker.calls.find((c) => c.path === "/containers/create?name=sharebox-tool-vecchio")!.body as { Labels: Record<string, string> };
+    const created = docker.calls.find((c) => c.path === "/containers/create?name=sharebox-tool-vecchio-next")!.body as { Labels: Record<string, string> };
     expect(created.Labels["sharebox.version"]).toBe("3");
     expect(created.Labels[SPEC_LABEL]).toBe(currentSpec("vecchio", 3));
   });
@@ -191,6 +238,11 @@ describe("refreshAll", () => {
     expect(result.refreshed).toEqual([]);
     expect(result.failed).toEqual([{ id: "senzafile", error: "file della versione 2 mancanti" }]);
     expect(docker.paths().some((p) => p.startsWith("DELETE"))).toBe(false);
+  });
+
+  it("ignora un container -next rimasto da una ripubblicazione interrotta", async () => {
+    docker.toolContainers = [{ Names: ["/sharebox-tool-abc-next"], State: "created", Labels: labels("abc", 2) }];
+    expect(await orchestrator.refreshAll()).toEqual({ refreshed: [], upToDate: 0, failed: [] });
   });
 
   it("guarda il contenuto dell'immagine, non il suo ID: una build identica non riavvia i tool", async () => {

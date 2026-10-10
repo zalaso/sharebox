@@ -41,6 +41,7 @@ describe("server MCP", () => {
       "sharebox_list",
       "sharebox_info",
       "sharebox_share",
+      "sharebox_rollback",
       "sharebox_unshare",
     ]);
     expect(names.some((n) => /elimina|delete/.test(n))).toBe(false);
@@ -126,6 +127,20 @@ describe("server MCP", () => {
     expect(res.result.isError).toBeUndefined();
     expect(res.result.content[0]!.text).toContain("Cartella collegata a questo tool");
     expect(platform.tools.size).toBe(1);
+  });
+
+  it("sharebox_rollback torna alla versione precedente, e senza versione precedente spiega perché", async () => {
+    const { call } = setup();
+    const dir = join(await tempProject({}), "rb");
+    await call("sharebox_create_project", { folder: dir, name: "Rb" });
+    await call("sharebox_publish", { folder: dir });
+    const early = await call("sharebox_rollback", { tool: dir });
+    expect(early.result.isError).toBe(true);
+    expect(early.result.content[0]!.text).toContain("versione precedente");
+    await call("sharebox_publish", { folder: dir });
+    const res = await call("sharebox_rollback", { tool: dir });
+    expect(res.result.isError).toBeUndefined();
+    expect(res.result.content[0]!.text).toContain("ora come versione 3");
   });
 
   it("in inglese risponde in inglese", async () => {

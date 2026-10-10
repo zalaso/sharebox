@@ -3,6 +3,7 @@
 //   GET    /api/tools                  tool che l'utente può gestire
 //   POST   /api/tools                  { name }                       → crea il tool (solo creatori)
 //   POST   /api/tools/<id>/deploy      { files: {…}, worker?: "…" }   → pubblica una nuova versione
+//   POST   /api/tools/<id>/rollback                                → torna ai file della versione precedente
 //   DELETE /api/tools/<id>                                             → elimina tool e dati (solo proprietario)
 //   GET    /api/tools/<id>                                             → dettagli e condivisioni
 //   PUT    /api/tools/<id>/grants      { type, value?, role }         → condivide (o cambia ruolo)
@@ -126,6 +127,37 @@ export function createApi(deps: ApiDeps): (request: Request) => Promise<Response
     return json(200, describe(tool, "manage"));
   }
 
+  /**
+   * Torna alla versione precedente: i suoi file vengono ripubblicati come versione nuova (le versioni crescono sempre),
+   * con il runtime attuale. Rifarlo subito dopo annulla il rollback.
+   */
+  async function rollback(user: User, request: Request, id: string): Promise<Response> {
+    const tool = managedTool(user, id);
+    const current = store.latestDeployment(tool.id);
+    const previous = current ? store.deploymentOf(tool.id, current.version - 1) : null;
+    if (!current || !previous) throw fail(400, "api.no_previous");
+
+    const version = store.nextVersion(tool.id);
+    try {
+      await orchestrator.rollback(tool.id, previous.version, version, tool.status === "active", Buffer.from(deps.runtimeEntry).toString("base64"));
+    } catch (error) {
+      // 400 dall'orchestratore: i file di quella versione non sono più sul server.
+      if (error instanceof OrchestratorError && error.status === 400) throw fail(400, "api.no_previous");
+      console.error(`Rollback di ${tool.id} non riuscito:`, error);
+      throw fail(502, "api.rollback_failed");
+    }
+
+    store.recordDeployment(tool.id, { version, actorEmail: user.email, files: previous.files, bytes: previous.bytes });
+    store.audit({
+      actor: user.email,
+      channel: channel(request),
+      action: "tool.rollback",
+      toolId: tool.id,
+      details: { version, restored: previous.version, from: current.version },
+    });
+    return json(200, describe(tool, "manage"));
+  }
+
   async function remove(user: User, request: Request, id: string): Promise<Response> {
     const tool = managedTool(user, id);
     if (tool.ownerEmail !== user.email) throw fail(403, "api.owner_only_delete");
@@ -229,6 +261,8 @@ export function createApi(deps: ApiDeps): (request: Request) => Promise<Response
     if (path === "/api/tools" && request.method === "POST") return createTool(user, request);
     const deployMatch = /^\/api\/tools\/([a-z0-9]+)\/deploy$/.exec(path);
     if (deployMatch && request.method === "POST") return deploy(user, request, deployMatch[1]!);
+    const rollbackMatch = /^\/api\/tools\/([a-z0-9]+)\/rollback$/.exec(path);
+    if (rollbackMatch && request.method === "POST") return rollback(user, request, rollbackMatch[1]!);
     const toolMatch = /^\/api\/tools\/([a-z0-9]+)$/.exec(path);
     if (toolMatch && request.method === "DELETE") return remove(user, request, toolMatch[1]!);
     if (toolMatch && request.method === "GET") return json(200, details(managedTool(user, toolMatch[1]!)));

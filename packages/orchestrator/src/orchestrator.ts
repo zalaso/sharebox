@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { expectStatus, type Docker } from "./docker";
-import { pruneVersions, removeToolFiles, versionDir, writeVersion } from "./files";
+import { copyVersion, pruneVersions, removeToolFiles, versionDir, writeVersion } from "./files";
 import { SPEC_LABEL, TOOL_LABEL, assertToolId, assertVersion, containerSpec, names, networkSpec, runtimeFingerprint, volumeSpec } from "./spec";
 
 export interface OrchestratorOptions {
@@ -84,11 +84,28 @@ export class Orchestrator {
   }
 
   /** Elimina container, rete, dati e file del tool. */
+  /**
+   * Torna ai file della versione `from` pubblicandoli come versione nuova `to` (le versioni crescono sempre).
+   * Resta su disco anche la versione da cui si torna indietro, così il rollback si può annullare.
+   */
+  async rollback(id: string, from: number, to: number, start: boolean, entry: Uint8Array): Promise<void> {
+    assertToolId(id);
+    assertVersion(from);
+    assertVersion(to);
+    return this.serialized(id, async () => {
+      const { toolsDir } = this.options;
+      await copyVersion(toolsDir, id, from, to, entry);
+      await this.recreate(id, to, start, await this.runtime());
+      await pruneVersions(toolsDir, id, [to, to - 1]);
+    });
+  }
+
   async remove(id: string): Promise<void> {
     assertToolId(id);
     return this.serialized(id, async () => {
       const { docker, toolsDir, platformContainer } = this.options;
       const n = names(id);
+      expectStatus(await docker.request("DELETE", `/containers/${n.next}?force=true`), "rimozione container", 204, 404);
       expectStatus(await docker.request("DELETE", `/containers/${n.container}?force=true`), "rimozione container", 204, 404);
       const disconnect = await docker.request("POST", `/networks/${n.network}/disconnect`, { Container: platformContainer, Force: true });
       // Docker risponde 500 "is not connected" se il collegamento non c'è già più.
@@ -162,6 +179,7 @@ export class Orchestrator {
     const runtime = await this.runtime();
     const filters = encodeURIComponent(JSON.stringify({ label: [TOOL_LABEL] }));
     const containers = expectStatus(await docker.request("GET", `/containers/json?all=1&filters=${filters}`), "elenco container", 200).body as {
+      Names?: string[];
       State: string;
       Labels: Record<string, string>;
     }[];
@@ -169,6 +187,8 @@ export class Orchestrator {
     for (const container of containers) {
       const id = container.Labels[TOOL_LABEL] ?? "";
       const version = Number(container.Labels["sharebox.version"]);
+      // Un container "-next" rimasto da una ripubblicazione interrotta: lo toglie la prossima ripubblicazione.
+      if (container.Names?.some((name) => name.endsWith("-next"))) continue;
       try {
         assertToolId(id);
         assertVersion(version);
@@ -196,13 +216,20 @@ export class Orchestrator {
     return runtimeFingerprint(res.body as { RootFS?: unknown; Config?: unknown });
   }
 
-  /** Container nuovo per una versione già scritta su disco. */
+  /**
+   * Container nuovo per una versione già scritta su disco. Viene preparato con un nome temporaneo mentre
+   * quello vecchio serve ancora; poi si toglie il vecchio e si avvia il nuovo. L'interruzione è solo
+   * l'avvio, e il gateway nel frattempo trattiene le richieste invece di rispondere con un errore.
+   * I due container non girano mai insieme: condividono il database del tool.
+   */
   private async recreate(id: string, version: number, start: boolean, runtime: string): Promise<void> {
     const { docker, runtimeImage, hostToolsDir } = this.options;
     const n = names(id);
-    expectStatus(await docker.request("DELETE", `/containers/${n.container}?force=true`), "rimozione container", 204, 404);
     const spec = containerSpec(id, version, { runtimeImage, hostCodeDir: versionDir(hostToolsDir, id, version), runtime });
-    expectStatus(await docker.request("POST", `/containers/create?name=${n.container}`, spec), "creazione container", 201);
+    expectStatus(await docker.request("DELETE", `/containers/${n.next}?force=true`), "rimozione container", 204, 404);
+    expectStatus(await docker.request("POST", `/containers/create?name=${n.next}`, spec), "creazione container", 201);
+    expectStatus(await docker.request("DELETE", `/containers/${n.container}?force=true`), "rimozione container", 204, 404);
+    expectStatus(await docker.request("POST", `/containers/${n.next}/rename?name=${n.container}`), "rinomina container", 204);
     if (start) expectStatus(await docker.request("POST", `/containers/${n.container}/start`), "avvio container", 204);
   }
 

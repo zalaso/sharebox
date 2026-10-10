@@ -33,6 +33,8 @@ export class InvalidRequest extends Error {}
 export function names(id: string) {
   return {
     container: `sharebox-tool-${id}`,
+    /** Container nuovo preparato durante una ripubblicazione, prima di togliere quello in uso. */
+    next: `sharebox-tool-${id}-next`,
     /** Nome con cui la piattaforma raggiunge il tool: `http://tool-<id>:8080`. */
     alias: `tool-${id}`,
     network: `sbx-tool-${id}`,

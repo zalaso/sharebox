@@ -248,6 +248,18 @@ export class Store {
       .run(toolId, deployment.version, this.now(), deployment.actorEmail, deployment.files, deployment.bytes);
   }
 
+  deploymentOf(toolId: string, version: number): Deployment | null {
+    const row = this.db.prepare("SELECT * FROM deployments WHERE tool_id = ? AND version = ?").get(toolId, version) as Row | undefined;
+    if (!row) return null;
+    return {
+      version: row.version as number,
+      createdAt: row.created_at as number,
+      actorEmail: row.actor_email as string,
+      files: row.files as number,
+      bytes: row.bytes as number,
+    };
+  }
+
   latestDeployment(toolId: string): Deployment | null {
     const row = this.db.prepare("SELECT * FROM deployments WHERE tool_id = ? ORDER BY version DESC LIMIT 1").get(toolId) as
       | Row

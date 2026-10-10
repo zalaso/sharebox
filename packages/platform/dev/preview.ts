@@ -12,7 +12,7 @@ import type { Orchestrator } from "../src/orchestrator-client";
 import { createPlatformApp } from "../src/platform-app";
 import { Store } from "../src/store";
 
-const PORT = 8790;
+const PORT = Number(process.env.PORT ?? 8790);
 // Si lancia dalla radice del repository (npm run dev:dashboard).
 const dir = join(process.cwd(), "packages", "platform", "dashboard");
 const read = (file: string) => readFileSync(join(dir, file), "utf8");
@@ -64,6 +64,7 @@ store.createApiToken(guido.sub, "CLI – portatile");
 const orchestrator: Orchestrator = {
   deploy: async () => undefined,
   remove: async () => undefined,
+  rollback: async () => undefined,
   sync: async () => 0,
   stop: async () => undefined,
   start: async () => undefined,

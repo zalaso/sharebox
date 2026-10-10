@@ -32,7 +32,7 @@ On Windows: `claude mcp add --scope user sharebox -- cmd /c sharebox mcp`.
 
 Without a global install, other MCP clients can run `npx -y sharebox-cli mcp` (after `npx sharebox-cli login <instance>` once).
 
-Tools: `sharebox_guide`, `sharebox_create_project`, `sharebox_publish`, `sharebox_list`, `sharebox_info`, `sharebox_share`, `sharebox_unshare`. There is deliberately no delete tool: deleting erases data, so it stays in the CLI behind a confirmation.
+Tools: `sharebox_guide`, `sharebox_create_project`, `sharebox_publish`, `sharebox_list`, `sharebox_info`, `sharebox_share`, `sharebox_rollback`, `sharebox_unshare`. There is deliberately no delete tool: deleting erases data, so it stays in the CLI behind a confirmation.
 
 Then just ask: *"Build a vacation tracker for my team and publish it on ShareBox."*
 
@@ -46,6 +46,7 @@ Then just ask: *"Build a vacation tracker for my team and publish it on ShareBox
 | `sharebox info <tool>` | Address, version and shares |
 | `sharebox share <tool> <with> [--role use\|manage]` | `<with>`: an email, `@domain.com` or `anyone` |
 | `sharebox unshare <tool> <with>` | Remove a share |
+| `sharebox rollback <tool>` | Go back to the previous version (published again as a new version, same link and data); run it again to undo |
 | `sharebox delete <tool> --yes` | Delete a tool and its data |
 | `sharebox guide` | How to build a tool (written for agents) |
 | `sharebox mcp` | MCP server on stdio |

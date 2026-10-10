@@ -13,6 +13,10 @@ export interface GatewayOptions {
   authenticate: (request: Request, slug: string) => Promise<Authentication>;
   /** Attesa massima per gli header di risposta del tool. Il corpo può poi arrivare senza limiti. */
   timeoutMs?: number;
+  /** Per quanto si riprova un tool che non risponde perché si sta riavviando (ripubblicazione). */
+  retryWindowMs?: number;
+  /** Prima attesa tra un tentativo e l'altro; raddoppia fino a un secondo. */
+  retryDelayMs?: number;
   fetchUpstream?: typeof fetch;
 }
 
@@ -31,12 +35,26 @@ const MESSAGES = {
   },
 };
 
+// Errori di connessione: la richiesta non è arrivata al tool, quindi si può sempre riprovare.
+const NOT_DELIVERED = new Set(["ECONNREFUSED", "ENOTFOUND", "EAI_AGAIN", "EHOSTUNREACH", "UND_ERR_CONNECT_TIMEOUT"]);
+// Connessione caduta a metà: la richiesta potrebbe essere arrivata, quindi si riprovano solo le letture.
+const DROPPED = new Set(["ECONNRESET", "EPIPE", "UND_ERR_SOCKET"]);
+// Oltre questa dimensione il corpo passa in streaming, senza tentativi ripetuti.
+const MAX_BUFFERED_BODY = 1024 * 1024;
+
+function errorCode(error: unknown): string | undefined {
+  const { code, cause } = error as { code?: string; cause?: { code?: string } };
+  return cause?.code ?? code;
+}
+
 // Header legati alla singola connessione o alla compressione: non vanno inoltrati al tool.
 const HOP_BY_HOP = ["connection", "keep-alive", "proxy-connection", "transfer-encoding", "te", "trailer", "upgrade", "host", "accept-encoding"];
 
 export function createGateway(options: GatewayOptions): (request: Request) => Promise<Response> {
   const fetchUpstream = options.fetchUpstream ?? fetch;
   const timeoutMs = options.timeoutMs ?? 30_000;
+  const retryWindowMs = options.retryWindowMs ?? 10_000;
+  const firstDelayMs = options.retryDelayMs ?? 200;
 
   return async (request) => {
     const url = new URL(request.url);
@@ -52,22 +70,39 @@ export function createGateway(options: GatewayOptions): (request: Request) => Pr
 
     const headers = forwardedHeaders(request.headers, auth.identity, auth.role, SESSION_COOKIE);
     for (const name of HOP_BY_HOP) headers.delete(name);
-    const hasBody = request.method !== "GET" && request.method !== "HEAD";
+    const reading = request.method === "GET" || request.method === "HEAD";
+    // I corpi piccoli si tengono in memoria, così la richiesta si può ripetere se il tool si sta riavviando.
+    const length = Number(request.headers.get("content-length") ?? NaN);
+    const body = reading ? undefined : length <= MAX_BUFFERED_BODY ? await request.arrayBuffer() : request.body;
+    const canRetry = !(body instanceof ReadableStream);
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const deadline = Date.now() + retryWindowMs;
+    let delay = firstDelayMs;
     let upstream: Response;
     try {
-      upstream = await fetchUpstream(new URL(url.pathname + url.search, auth.upstream), {
-        method: request.method,
-        headers,
-        body: hasBody ? request.body : undefined,
-        redirect: "manual",
-        signal: controller.signal,
-        duplex: "half",
-      } as RequestInit);
-    } catch {
-      return controller.signal.aborted ? text(504, MESSAGES[lang].timeout) : text(502, MESSAGES[lang].unreachable);
+      for (;;) {
+        try {
+          upstream = await fetchUpstream(new URL(url.pathname + url.search, auth.upstream), {
+            method: request.method,
+            headers,
+            body,
+            redirect: "manual",
+            signal: controller.signal,
+            duplex: "half",
+          } as RequestInit);
+          break;
+        } catch (error) {
+          if (controller.signal.aborted) return text(504, MESSAGES[lang].timeout);
+          // Durante una ripubblicazione il container è assente per un attimo: si aspetta invece di fallire.
+          const code = errorCode(error);
+          const retryable = canRetry && code !== undefined && (NOT_DELIVERED.has(code) || (reading && DROPPED.has(code)));
+          if (!retryable || Date.now() + delay > deadline) return text(502, MESSAGES[lang].unreachable);
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          delay = Math.min(delay * 2, 1000);
+        }
+      }
     } finally {
       clearTimeout(timer);
     }

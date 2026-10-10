@@ -106,6 +106,58 @@ describe("createGateway", () => {
     expect((await handle(new Request("https://ferie.sbx.duckdns.org/"))).status).toBe(502);
   });
 
+describe("tool che si sta riavviando (ripubblicazione)", () => {
+  const refused = () => Object.assign(new TypeError("fetch failed"), { cause: { code: "ECONNREFUSED" } });
+  const reset = () => Object.assign(new TypeError("fetch failed"), { cause: { code: "ECONNRESET" } });
+  function flaky(failures: (() => Error)[]) {
+    const calls: RequestInit[] = [];
+    const handle = createGateway({
+      toolsDomain: "sbx.duckdns.org",
+      authenticate: async () => allowed,
+      retryDelayMs: 1,
+      retryWindowMs: 200,
+      fetchUpstream: (async (_url: URL, init: RequestInit) => {
+        calls.push(init);
+        const failure = failures.shift();
+        if (failure) throw failure();
+        return new Response("ok");
+      }) as typeof fetch,
+    });
+    return { handle, calls };
+  }
+
+  it("aspetta e riprova finché il container nuovo risponde", async () => {
+    const { handle, calls } = flaky([refused, refused]);
+    const res = await handle(new Request("https://ferie.sbx.duckdns.org/"));
+    expect(res.status).toBe(200);
+    expect(calls).toHaveLength(3);
+  });
+
+  it("riprova anche una scrittura se non era mai arrivata, con lo stesso corpo", async () => {
+    const { handle, calls } = flaky([refused]);
+    const res = await handle(
+      new Request("https://ferie.sbx.duckdns.org/api", { method: "POST", body: "{\"a\":1}", headers: { "content-type": "application/json", "content-length": "7" } }),
+    );
+    expect(res.status).toBe(200);
+    expect(calls).toHaveLength(2);
+    expect(new TextDecoder().decode(calls[1]!.body as ArrayBuffer)).toBe("{\"a\":1}");
+  });
+
+  it("non ripete una scrittura se la connessione è caduta a metà", async () => {
+    const { handle, calls } = flaky([reset]);
+    const res = await handle(new Request("https://ferie.sbx.duckdns.org/api", { method: "POST", body: "x", headers: { "content-length": "1" } }));
+    expect(res.status).toBe(502);
+    expect(calls).toHaveLength(1);
+  });
+
+  it("si arrende dopo la finestra di attesa", async () => {
+    const { handle } = flaky(Array.from({ length: 1000 }, () => refused));
+    const started = Date.now();
+    expect((await handle(new Request("https://ferie.sbx.duckdns.org/"))).status).toBe(502);
+    expect(Date.now() - started).toBeLessThan(2000);
+  });
+});
+
   it("risponde 504 se il tool non manda la risposta entro il timeout", async () => {
     const hang = (init: RequestInit) =>
       new Promise<Response>((_, reject) => init.signal!.addEventListener("abort", () => reject(new Error("aborted"))));

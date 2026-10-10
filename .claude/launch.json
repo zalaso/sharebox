@@ -4,8 +4,12 @@
     {
       "name": "dashboard",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev:dashboard"],
-      "port": 8790
+      "runtimeArgs": [
+        "run",
+        "dev:dashboard"
+      ],
+      "port": 8790,
+      "autoPort": true
     }
   ]
 }

@@ -34,6 +34,7 @@ Indica l'indirizzo della tua ShareBox: ogni installazione è indipendente. Si ap
 | `sharebox info <tool>` | Indirizzo, versione, condivisioni |
 | `sharebox share <tool> <con> [--role use\|manage]` | `con`: un'email, `@dominio.it` oppure `chiunque` (o `anyone`) |
 | `sharebox unshare <tool> <con>` | Toglie una condivisione |
+| `sharebox rollback <tool>` | Torna alla versione precedente: i suoi file vengono ripubblicati come versione nuova, stesso link e dati invariati. Rifarlo annulla il rollback |
 | `sharebox delete <tool> --yes` | Elimina tool e dati; senza `--yes` chiede conferma |
 | `sharebox guide` | Istruzioni per costruire un tool (pensate per gli agenti) |
 
@@ -58,4 +59,4 @@ File nascosti e `node_modules` in `public/` vengono ignorati. Nomi dei file: let
 claude mcp add --scope user sharebox -- sharebox mcp
 ```
 
-Strumenti: `sharebox_guide`, `sharebox_create_project`, `sharebox_publish` (parametri `folder`, `name`, `tool`), `sharebox_list`, `sharebox_info`, `sharebox_share` (parametri `tool`, `with`, `role`), `sharebox_unshare`. Nomi e descrizioni sono in inglese, perché li legge l'agente; i risultati seguono la lingua della CLI. I nomi italiani della prima versione (`sharebox_pubblica` e gli altri, con i parametri `cartella`, `nome`, `con`, `ruolo`) sono ancora accettati. Non c'è uno strumento per eliminare: cancella i dati, quindi resta solo nella CLI con conferma. Le azioni fatte via MCP finiscono nel registro delle attività con canale `mcp`.
+Strumenti: `sharebox_guide`, `sharebox_create_project`, `sharebox_publish` (parametri `folder`, `name`, `tool`), `sharebox_list`, `sharebox_info`, `sharebox_share` (parametri `tool`, `with`, `role`), `sharebox_rollback`, `sharebox_unshare`. Nomi e descrizioni sono in inglese, perché li legge l'agente; i risultati seguono la lingua della CLI. I nomi italiani della prima versione (`sharebox_pubblica` e gli altri, con i parametri `cartella`, `nome`, `con`, `ruolo`) sono ancora accettati. Non c'è uno strumento per eliminare: cancella i dati, quindi resta solo nella CLI con conferma. Le azioni fatte via MCP finiscono nel registro delle attività con canale `mcp`.

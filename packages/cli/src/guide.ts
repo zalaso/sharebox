@@ -78,6 +78,7 @@ Chi usa il tool ha già il link e i dati ci sono già: una modifica non deve rom
 - Se hai ricostruito il tool in una cartella nuova, pubblica con sharebox_publish { folder, tool } (CLI: \`sharebox publish <cartella> --tool <id o nome>\`): aggiorna il tool esistente, stesso link, e collega la cartella. Senza \`tool\` nasce un tool nuovo con un link nuovo.
 - I record salvati restano tra una versione e l'altra e le collezioni non hanno uno schema. Il codice nuovo deve leggere anche i record vecchi: dai un valore predefinito ai campi nuovi, non rinominare né cambiare il tipo di un campo senza gestire i record che ce l'hanno nel formato precedente, non cancellare dati per "ripartire puliti".
 - Se cambi nome a una collezione, i record della vecchia non si spostano da soli: continua a leggere anche la vecchia, oppure copiali con il codice.
+- Se l'ultima pubblicazione ha rotto il tool, sharebox_rollback { tool } (CLI: \`sharebox rollback <tool>\`) torna subito alla versione precedente, stesso link e stessi dati; poi correggi e ripubblica.
 
 ## Prima di pubblicare
 - public/index.html esiste e include /__sharebox/sdk.js se usa dati o identità.
@@ -161,6 +162,7 @@ People already have the link and the data is already there: a change must not br
 - If you rebuilt the tool in a new folder, publish with sharebox_publish { folder, tool } (CLI: \`sharebox publish <folder> --tool <id or name>\`): it updates the existing tool, same link, and links the folder to it. Without \`tool\` you get a new tool with a new link.
 - Stored records survive across versions and collections have no schema. The new code must also read old records: give new fields a default, don't rename a field or change its type without handling records that still have the old shape, and don't delete data to "start clean".
 - If you rename a collection, records in the old one don't move by themselves: keep reading the old one too, or copy them over in code.
+- If the last publish broke the tool, sharebox_rollback { tool } (CLI: \`sharebox rollback <tool>\`) goes straight back to the previous version, same link and same data; then fix it and publish again.
 
 ## Before publishing
 - public/index.html exists and includes /__sharebox/sdk.js if it uses data or identity.

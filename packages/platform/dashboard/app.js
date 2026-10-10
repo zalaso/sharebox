@@ -83,6 +83,9 @@ const TEXT = {
     published: "Pubblicato",
     oom_warning: "L'ultima volta il tool è stato fermato perché ha superato la memoria disponibile (128 MB).",
     restarting_warning: "Il tool va in errore all'avvio: guarda i log qui sotto.",
+    rollback: "Torna alla versione precedente",
+    rollback_confirm: "Tornare ai file della versione {version}? Saranno pubblicati come versione nuova: stesso link, dati invariati. Si può annullare rifacendolo.",
+    rolled_back: "Tornato alla versione precedente",
     no_messages: "Nessun messaggio.",
     recent_logs: "Log recenti",
     refresh: "Aggiorna",
@@ -91,6 +94,7 @@ const TEXT = {
     act_deploy: "ha pubblicato la versione {version}",
     act_suspend: "ha sospeso il tool",
     act_resume: "ha riattivato il tool",
+    act_rollback: "è tornato ai file della versione {restored} (ora versione {version})",
     act_grant_set: "ha condiviso con {who} ({role})",
     act_grant_remove: "ha tolto l'accesso a {who}",
     channel_web: "dashboard",
@@ -186,6 +190,9 @@ const TEXT = {
     published: "Published",
     oom_warning: "Last time the tool was stopped because it exceeded the available memory (128 MB).",
     restarting_warning: "The tool fails on startup: check the logs below.",
+    rollback: "Go back to the previous version",
+    rollback_confirm: "Go back to the files of version {version}? They will be published as a new version: same link, data unchanged. You can undo it by doing it again.",
+    rolled_back: "Back to the previous version",
     no_messages: "No messages.",
     recent_logs: "Recent logs",
     refresh: "Refresh",
@@ -194,6 +201,7 @@ const TEXT = {
     act_deploy: "published version {version}",
     act_suspend: "suspended the tool",
     act_resume: "resumed the tool",
+    act_rollback: "went back to the files of version {restored} (now version {version})",
     act_grant_set: "shared with {who} ({role})",
     act_grant_remove: "removed access for {who}",
     channel_web: "dashboard",
@@ -564,7 +572,22 @@ async function fillStatus(tool, card) {
   const warnings = [];
   if (status.oomKilled) warnings.push(t("oom_warning"));
   if (status.state === "restarting") warnings.push(t("restarting_warning"));
-  card.replaceChildren(h("h2", {}, t("status")), facts, ...warnings.map((text) => h("p", { class: "hint" }, text)));
+  // Tornare indietro serve proprio quando l'ultima pubblicazione ha rotto il tool: il pulsante sta accanto allo stato.
+  const rollback =
+    tool.version !== null && tool.version >= 2
+      ? h(
+          "button",
+          {
+            class: "secondary",
+            onclick: async () => {
+              if (!confirm(t("rollback_confirm", { version: tool.version - 1 }))) return;
+              if (await attempt(() => api("POST", `/api/tools/${tool.id}/rollback`), t("rolled_back"))) render();
+            },
+          },
+          t("rollback"),
+        )
+      : null;
+  card.replaceChildren(h("h2", {}, t("status")), facts, ...warnings.map((text) => h("p", { class: "hint" }, text)), rollback);
 }
 
 async function fillLogs(tool, card) {
@@ -593,6 +616,7 @@ const ACTIONS = {
   "tool.deploy": (d) => t("act_deploy", { version: d.version }),
   "tool.suspend": () => t("act_suspend"),
   "tool.resume": () => t("act_resume"),
+  "tool.rollback": (d) => t("act_rollback", { restored: d.restored, version: d.version }),
   "grant.set": (d) => t("act_grant_set", { who: describePrincipal(d.principal), role: ROLE[d.role].toLowerCase() }),
   "grant.remove": (d) => t("act_grant_remove", { who: describePrincipal(d.principal) }),
 };

@@ -13,6 +13,7 @@ let store: Store;
 let api: (request: Request) => Promise<Response>;
 let deploys: { toolId: string; version: number; files: Record<string, string> }[];
 let removed: string[];
+let rollbacks: { toolId: string; from: number; to: number; start: boolean; entry: string }[];
 let containerCalls: string[];
 let failNext: Error | null;
 let tokens: Record<"guido" | "anna", string>;
@@ -21,6 +22,7 @@ beforeEach(() => {
   store = new Store(openDatabase(":memory:"));
   deploys = [];
   removed = [];
+  rollbacks = [];
   containerCalls = [];
   failNext = null;
   const orchestrator: Orchestrator = {
@@ -30,6 +32,10 @@ beforeEach(() => {
     },
     remove: async (toolId) => {
       removed.push(toolId);
+    },
+    rollback: async (toolId, from, to, start, entry) => {
+      if (failNext) throw failNext;
+      rollbacks.push({ toolId, from, to, start, entry });
     },
     sync: async () => 0,
     status: async (toolId) => {
@@ -167,6 +173,47 @@ describe("pubblicazione", () => {
 });
 
 describe("elenco ed eliminazione", () => {
+  it("rollback: ripubblica la versione precedente come versione nuova, con il runtime attuale", async () => {
+    const tool = await createTool();
+    const deployOnce = () => call("POST", `/api/tools/${tool.id}/deploy`, "guido", { files: { "index.html": b64("x") } });
+    expect((await call("POST", `/api/tools/${tool.id}/rollback`, "guido")).status).toBe(400); // nessuna versione
+    await deployOnce();
+    expect((await call("POST", `/api/tools/${tool.id}/rollback`, "guido")).status).toBe(400); // una sola versione
+    await deployOnce();
+
+    const res = await call("POST", `/api/tools/${tool.id}/rollback`, "guido");
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { version: number }).version).toBe(3);
+    expect(rollbacks).toEqual([{ toolId: tool.id, from: 1, to: 3, start: true, entry: Buffer.from(RUNTIME).toString("base64") }]);
+    const activity = (await (await call("GET", `/api/tools/${tool.id}/activity`, "guido")).json()) as { events: { action: string; details: unknown }[] };
+    expect(activity.events[0]).toMatchObject({ action: "tool.rollback", details: { version: 3, restored: 1, from: 2 } });
+
+    // Rifarlo subito dopo annulla il rollback: torna ai file della versione 2.
+    await call("POST", `/api/tools/${tool.id}/rollback`, "guido");
+    expect(rollbacks[1]).toMatchObject({ from: 2, to: 4 });
+  });
+
+  it("rollback: serve poter gestire il tool; su un tool sospeso non lo avvia", async () => {
+    const tool = await createTool();
+    for (const n of [1, 2]) await call("POST", `/api/tools/${tool.id}/deploy`, "guido", { files: { "index.html": b64(String(n)) } });
+    await call("PUT", `/api/tools/${tool.id}/grants`, "guido", { type: "user", value: "anna@azienda.com", role: "use" });
+    expect((await call("POST", `/api/tools/${tool.id}/rollback`, "anna")).status).toBe(403);
+    expect(rollbacks).toHaveLength(0);
+
+    await call("POST", `/api/tools/${tool.id}/suspend`, "guido");
+    expect((await call("POST", `/api/tools/${tool.id}/rollback`, "guido")).status).toBe(200);
+    expect(rollbacks[0]!.start).toBe(false);
+  });
+
+  it("rollback: se l'orchestratore fallisce la versione non viene registrata", async () => {
+    const tool = await createTool();
+    for (const n of [1, 2]) await call("POST", `/api/tools/${tool.id}/deploy`, "guido", { files: { "index.html": b64(String(n)) } });
+    failNext = new Error("docker giù");
+    expect((await call("POST", `/api/tools/${tool.id}/rollback`, "guido")).status).toBe(502);
+    failNext = null;
+    expect(store.latestDeployment(tool.id)!.version).toBe(2);
+  });
+
   it("elenca solo i tool che l'utente può gestire", async () => {
     const tool = await createTool();
     expect(((await (await call("GET", "/api/tools", "anna")).json()) as { tools: unknown[] }).tools).toHaveLength(0);
