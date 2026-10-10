@@ -87,6 +87,38 @@ describe("publish", () => {
   });
 });
 
+describe("publish su un tool esistente (opzione tool)", () => {
+  it("una cartella nuova aggiorna il tool indicato, con lo stesso link, e resta collegata", async () => {
+    const platform = fakePlatform();
+    const original = await tempProject({ "sharebox.json": '{ "name": "Ferie" }', "public/index.html": "v1" });
+    const first = await publish(platform.client, original);
+
+    // L'agente ricostruisce il tool da zero in un'altra cartella, senza sharebox.json.
+    const rebuilt = await tempProject({ "public/index.html": "v2" });
+    const second = await publish(platform.client, rebuilt, { tool: "ferie" });
+    expect(second.created).toBe(false);
+    expect(second.relinked).toBe(true);
+    expect(second.tool.id).toBe(first.tool.id);
+    expect(second.tool.url).toBe(first.tool.url);
+    expect(second.tool.version).toBe(2);
+    expect(platform.tools.size).toBe(1);
+    expect(JSON.parse(await readFile(join(rebuilt, "sharebox.json"), "utf8"))).toEqual({ name: "Ferie", id: first.tool.id });
+
+    // Da qui in poi basta la cartella.
+    const third = await publish(platform.client, rebuilt);
+    expect(third.relinked).toBe(false);
+    expect(third.tool.version).toBe(3);
+  });
+
+  it("con un tool che non esiste si ferma prima di toccare la cartella o crearne uno nuovo", async () => {
+    const platform = fakePlatform();
+    const dir = await tempProject({ "sharebox.json": '{ "name": "Mio" }', "public/index.html": "x" });
+    await expect(publish(platform.client, dir, { tool: "zzzzzzzzzzzz" })).rejects.toThrow(/non trovato/);
+    expect(platform.tools.size).toBe(0);
+    expect(JSON.parse(await readFile(join(dir, "sharebox.json"), "utf8"))).toEqual({ name: "Mio" });
+  });
+});
+
 describe("resolveTool", () => {
   it("accetta cartella, id, indirizzo e nome", async () => {
     const platform = fakePlatform();

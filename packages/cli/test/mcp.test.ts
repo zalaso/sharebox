@@ -98,6 +98,20 @@ describe("server MCP", () => {
     expect([...platform.tools.values()][0]!.grants).toEqual([{ type: "user", value: "anna@azienda.com", role: "manage" }]);
   });
 
+  it("sharebox_publish con tool aggiorna lo strumento esistente da una cartella nuova", async () => {
+    const { call, platform } = setup();
+    const first = join(await tempProject({}), "uno");
+    await call("sharebox_create_project", { folder: first, name: "Ferie" });
+    await call("sharebox_publish", { folder: first });
+    const id = [...platform.tools.keys()][0]!;
+    const second = join(await tempProject({}), "due");
+    await call("sharebox_create_project", { folder: second, name: "Ferie v2" });
+    const res = await call("sharebox_publish", { folder: second, tool: id });
+    expect(res.result.isError).toBeUndefined();
+    expect(res.result.content[0]!.text).toContain("Cartella collegata a questo tool");
+    expect(platform.tools.size).toBe(1);
+  });
+
   it("in inglese risponde in inglese", async () => {
     setLang("en");
     const { call } = setup();

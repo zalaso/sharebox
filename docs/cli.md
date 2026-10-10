@@ -29,7 +29,7 @@ Indica l'indirizzo della tua ShareBox: ogni installazione è indipendente. Si ap
 | Comando | Cosa fa |
 |---|---|
 | `sharebox init <cartella> [--name "Nome"]` | Cartella di partenza: `sharebox.json` e `public/index.html` con un esempio che usa l'SDK |
-| `sharebox publish [cartella] [--name "Nome"]` | Prima volta: crea il tool e scrive l'id in `sharebox.json`. Poi: nuova versione dello stesso tool, stesso indirizzo, dati conservati |
+| `sharebox publish [cartella] [--name "Nome"] [--tool <tool>]` | Prima volta: crea il tool e scrive l'id in `sharebox.json`. Poi: nuova versione dello stesso tool, stesso indirizzo, dati conservati. Con `--tool` aggiorna un tool esistente da qualunque cartella (utile se l'agente l'ha ricostruito altrove) e collega la cartella a quel tool |
 | `sharebox list` | Tool che puoi gestire |
 | `sharebox info <tool>` | Indirizzo, versione, condivisioni |
 | `sharebox share <tool> <con> [--role use\|manage]` | `con`: un'email, `@dominio.it` oppure `chiunque` (o `anyone`) |
@@ -58,4 +58,4 @@ File nascosti e `node_modules` in `public/` vengono ignorati. Nomi dei file: let
 claude mcp add --scope user sharebox -- sharebox mcp
 ```
 
-Strumenti: `sharebox_guide`, `sharebox_create_project`, `sharebox_publish`, `sharebox_list`, `sharebox_info`, `sharebox_share` (parametri `tool`, `with`, `role`), `sharebox_unshare`. Nomi e descrizioni sono in inglese, perché li legge l'agente; i risultati seguono la lingua della CLI. I nomi italiani della prima versione (`sharebox_pubblica` e gli altri, con i parametri `cartella`, `nome`, `con`, `ruolo`) sono ancora accettati. Non c'è uno strumento per eliminare: cancella i dati, quindi resta solo nella CLI con conferma. Le azioni fatte via MCP finiscono nel registro delle attività con canale `mcp`.
+Strumenti: `sharebox_guide`, `sharebox_create_project`, `sharebox_publish` (parametri `folder`, `name`, `tool`), `sharebox_list`, `sharebox_info`, `sharebox_share` (parametri `tool`, `with`, `role`), `sharebox_unshare`. Nomi e descrizioni sono in inglese, perché li legge l'agente; i risultati seguono la lingua della CLI. I nomi italiani della prima versione (`sharebox_pubblica` e gli altri, con i parametri `cartella`, `nome`, `con`, `ruolo`) sono ancora accettati. Non c'è uno strumento per eliminare: cancella i dati, quindi resta solo nella CLI con conferma. Le azioni fatte via MCP finiscono nel registro delle attività con canale `mcp`.

@@ -72,6 +72,13 @@ export default {
 - Condividi con sharebox_share { tool, with, role }, dove with è "anna@azienda.com", "@azienda.com" (tutti gli account Google Workspace di quel dominio) oppure "anyone" (chiunque abbia il link, sempre con login Google); role è "use" oppure "manage".
 - Dopo la pubblicazione comunica all'utente l'indirizzo e con chi è condiviso.
 
+## Modificare un tool già pubblicato
+Chi usa il tool ha già il link e i dati ci sono già: una modifica non deve romperli.
+- Lavora nella stessa cartella e ripubblica: sharebox.json contiene l'id del tool, ed è quello che tiene fermo il link. Non cancellarlo e non cambiarlo.
+- Se hai ricostruito il tool in una cartella nuova, pubblica con sharebox_publish { folder, tool } (CLI: \`sharebox publish <cartella> --tool <id o nome>\`): aggiorna il tool esistente, stesso link, e collega la cartella. Senza \`tool\` nasce un tool nuovo con un link nuovo.
+- I record salvati restano tra una versione e l'altra e le collezioni non hanno uno schema. Il codice nuovo deve leggere anche i record vecchi: dai un valore predefinito ai campi nuovi, non rinominare né cambiare il tipo di un campo senza gestire i record che ce l'hanno nel formato precedente, non cancellare dati per "ripartire puliti".
+- Se cambi nome a una collezione, i record della vecchia non si spostano da soli: continua a leggere anche la vecchia, oppure copiali con il codice.
+
 ## Prima di pubblicare
 - public/index.html esiste e include /__sharebox/sdk.js se usa dati o identità.
 - L'interfaccia funziona anche da telefono e mostra stati di caricamento, elenco vuoto ed errori.
@@ -147,6 +154,13 @@ export default {
 - A new tool is private: only its publisher can see it.
 - Share with sharebox_share { tool, with, role }, where with is "anna@company.com", "@company.com" (every Google Workspace account of that domain) or "anyone" (anyone with the link, still signing in with Google); role is "use" or "manage".
 - After publishing, tell the user the address and who it is shared with.
+
+## Changing a tool that is already published
+People already have the link and the data is already there: a change must not break either.
+- Work in the same folder and publish again: sharebox.json holds the tool's id, which is what keeps the link stable. Don't delete or change it.
+- If you rebuilt the tool in a new folder, publish with sharebox_publish { folder, tool } (CLI: \`sharebox publish <folder> --tool <id or name>\`): it updates the existing tool, same link, and links the folder to it. Without \`tool\` you get a new tool with a new link.
+- Stored records survive across versions and collections have no schema. The new code must also read old records: give new fields a default, don't rename a field or change its type without handling records that still have the old shape, and don't delete data to "start clean".
+- If you rename a collection, records in the old one don't move by themselves: keep reading the old one too, or copy them over in code.
 
 ## Before publishing
 - public/index.html exists and includes /__sharebox/sdk.js if it uses data or identity.

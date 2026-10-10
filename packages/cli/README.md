@@ -41,7 +41,7 @@ Then just ask: *"Build a vacation tracker for my team and publish it on ShareBox
 | Command | What it does |
 |---|---|
 | `sharebox init <folder> [--name N]` | Starter folder with an example that uses the SDK |
-| `sharebox publish [folder] [--name N]` | Publish, or update the same tool on later runs (same address, data kept) |
+| `sharebox publish [folder] [--name N] [--tool T]` | Publish, or update the same tool on later runs (same address, data kept). `--tool` updates an existing tool from any folder, e.g. after an agent rebuilt it elsewhere |
 | `sharebox list` | Tools you can manage |
 | `sharebox info <tool>` | Address, version and shares |
 | `sharebox share <tool> <with> [--role use\|manage]` | `<with>`: an email, `@domain.com` or `anyone` |

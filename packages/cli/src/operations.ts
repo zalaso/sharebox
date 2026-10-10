@@ -8,13 +8,19 @@ import { ProjectError, bundleWorker, collectPublic, findWorker, readManifest, wr
 export interface PublishResult {
   tool: ToolInfo;
   created: boolean;
+  /** sharebox.json è stato collegato a un tool esistente (opzione tool). */
+  relinked: boolean;
   files: number;
   bytes: number;
   worker: boolean;
 }
 
-/** Pubblica la cartella: al primo publish crea il tool e scrive l'id in sharebox.json; poi aggiorna sempre lo stesso tool. */
-export async function publish(client: ShareboxClient, dir: string, options: { name?: string } = {}): Promise<PublishResult> {
+/**
+ * Pubblica la cartella: al primo publish crea il tool e scrive l'id in sharebox.json; poi aggiorna sempre lo stesso tool.
+ * Con `tool` pubblica su un tool esistente (id, indirizzo o nome) e collega la cartella a quello: serve quando un agente
+ * ricostruisce il tool in una cartella nuova e il link condiviso deve restare lo stesso.
+ */
+export async function publish(client: ShareboxClient, dir: string, options: { name?: string; tool?: string } = {}): Promise<PublishResult> {
   const folder = resolve(dir);
   if (!existsSync(folder) || !statSync(folder).isDirectory()) throw new ProjectError(m("folder_not_found", { folder }));
   const manifest = await readManifest(folder);
@@ -27,6 +33,17 @@ export async function publish(client: ShareboxClient, dir: string, options: { na
 
   let id = manifest.id;
   let created = false;
+  let relinked = false;
+  if (options.tool) {
+    // Prima si verifica il tool, poi si tocca sharebox.json: un riferimento sbagliato non deve scollegare la cartella.
+    const target = await client.getTool(await resolveTool(client, options.tool)).catch((error: unknown) => {
+      if (error instanceof ShareboxError && error.status === 404) throw new ProjectError(m("tool_not_found", { ref: options.tool! }));
+      throw error;
+    });
+    relinked = target.id !== manifest.id;
+    id = target.id;
+    if (relinked) await writeManifest(folder, { ...manifest, name: manifest.name ?? target.name, id });
+  }
   if (!id) {
     const name = options.name ?? manifest.name ?? basename(folder);
     id = (await client.createTool(name)).id;
@@ -44,7 +61,7 @@ export async function publish(client: ShareboxClient, dir: string, options: { na
     }
     throw error;
   }
-  return { tool, created, files: publicFiles.count, bytes: publicFiles.bytes, worker: Boolean(worker) };
+  return { tool, created, relinked, files: publicFiles.count, bytes: publicFiles.bytes, worker: Boolean(worker) };
 }
 
 /** Un tool indicato come cartella (con sharebox.json), id, indirizzo, slug o nome. */

@@ -1,4 +1,5 @@
 // Comando `sharebox`.
+import { join, resolve } from "node:path";
 import { ShareboxClient, ShareboxError } from "./client";
 import { clearCredentials, loadCredentials, normalizeUrl, saveCredentials } from "./config";
 import { guide } from "./guide";
@@ -9,7 +10,7 @@ import { ProjectError } from "./project";
 import { describeGrant, describeRole, formatBytes, parseRole, parseTarget, publish, resolveTool } from "./operations";
 import { initProject } from "./template";
 
-export const VERSION = "0.1.1";
+export const VERSION = "0.1.2";
 
 const HELP = {
   it: `ShareBox ${VERSION} — pubblica e condividi tool web
@@ -19,7 +20,9 @@ const HELP = {
   sharebox logout                         scollega questo computer
   sharebox whoami                         mostra l'account collegato
   sharebox init <cartella> [--name N]     crea un tool nuovo da un modello
-  sharebox publish [cartella] [--name N]  pubblica o aggiorna (predefinita: cartella corrente)
+  sharebox publish [cartella] [--name N] [--tool T]
+                                          pubblica o aggiorna (predefinita: cartella corrente);
+                                          --tool: aggiorna un tool esistente, stesso link
   sharebox list                           i tool che puoi gestire
   sharebox info <tool>                    indirizzo, versione e condivisioni
   sharebox share <tool> <con> [--role use|manage]
@@ -39,7 +42,9 @@ Variabili: SHAREBOX_URL, SHAREBOX_TOKEN, SHAREBOX_LANG (it oppure en).`,
   sharebox logout                         disconnect this computer
   sharebox whoami                         show the connected account
   sharebox init <folder> [--name N]       create a new tool from a template
-  sharebox publish [folder] [--name N]    publish or update (default: current folder)
+  sharebox publish [folder] [--name N] [--tool T]
+                                          publish or update (default: current folder);
+                                          --tool: update an existing tool, same link
   sharebox list                           the tools you can manage
   sharebox info <tool>                    address, version and shares
   sharebox share <tool> <with> [--role use|manage]
@@ -69,7 +74,7 @@ function parseArgs(argv: string[]): Parsed {
     }
     const [key, inline] = arg.slice(2).split("=", 2) as [string, string | undefined];
     if (inline !== undefined) parsed.flags[key] = inline;
-    else if (["name", "role"].includes(key) && argv[i + 1] !== undefined) parsed.flags[key] = argv[++i]!;
+    else if (["name", "role", "tool"].includes(key) && argv[i + 1] !== undefined) parsed.flags[key] = argv[++i]!;
     else parsed.flags[key] = true;
   }
   return parsed;
@@ -139,11 +144,12 @@ export async function main(argv: string[]): Promise<number> {
 
     case "publish": {
       const dir = args[0] ?? ".";
-      const result = await publish(await authenticatedClient(), dir, { name: flag("name") });
+      const result = await publish(await authenticatedClient(), dir, { name: flag("name"), tool: flag("tool") });
       const lines = [
         m(result.created ? "published" : "updated", { name: result.tool.name, url: result.tool.url }),
         m("version_line", { version: result.tool.version ?? "-", files: result.files, size: formatBytes(result.bytes), worker: result.worker ? " + worker" : "" }),
       ];
+      if (result.relinked) lines.push(m("relinked", { file: join(resolve(dir), "sharebox.json") }));
       if (result.created) lines.push(m("private_hint", { dir }));
       print(lines.join("\n"), result);
       return 0;

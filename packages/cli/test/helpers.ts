@@ -45,7 +45,10 @@ export function fakePlatform() {
       return ok(tool);
     }
     const single = /^\/api\/tools\/(\w+)$/.exec(path);
-    if (single && init.method === "GET") return ok(tools.get(single[1]!));
+    if (single && init.method === "GET") {
+      const tool = tools.get(single[1]!);
+      return tool ? ok(tool) : Response.json({ error: "Tool non trovato" }, { status: 404 });
+    }
     return Response.json({ error: "non previsto" }, { status: 500 });
   }) as typeof fetch;
 

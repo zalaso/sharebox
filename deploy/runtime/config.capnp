@@ -9,6 +9,9 @@ const config :Workerd.Config = (
     (name = "main", worker = .tool),
     (name = "assets", disk = (path = "/tool/code/public")),
     (name = "data", disk = (path = "/data", writable = true)),
+    # Uscita verso la rete: nessuna. Secondo strato oltre alla rete Docker interna (ADR 0005):
+    # anche con una rete configurata male, una fetch del tool verso l'esterno riceve questo errore.
+    (name = "no-network", worker = .noNetwork),
   ],
   sockets = [(name = "http", address = "*:8080", http = (), service = "main")],
 );
@@ -25,4 +28,13 @@ const tool :Workerd.Worker = (
   ],
   durableObjectNamespaces = [(className = "ToolData", uniqueKey = "sharebox-tool-data", enableSql = true)],
   durableObjectStorage = (localDisk = "data"),
+  globalOutbound = "no-network",
+);
+
+const noNetwork :Workerd.Worker = (
+  modules = [(
+    name = "no-network.js",
+    esModule = "export default { fetch() { return new Response(\"ShareBox tools have no internet access\", { status: 502, headers: { \"content-type\": \"text/plain\" } }); } };",
+  )],
+  compatibilityDate = "2025-09-01",
 );

@@ -1,6 +1,7 @@
 // Server MCP su stdio (`sharebox mcp`): JSON-RPC 2.0, un messaggio per riga.
 // Non c'è uno strumento per eliminare i tool: cancella i dati, quindi resta solo nella CLI con conferma.
 // Nomi e descrizioni degli strumenti sono in inglese (li legge l'agente); i risultati seguono la lingua della CLI.
+import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import type { ShareboxClient } from "./client";
 import { MCP_INSTRUCTIONS, guide } from "./guide";
@@ -44,6 +45,11 @@ export const TOOLS = [
       properties: {
         folder: { type: "string", description: "Absolute path of the tool's folder." },
         name: { type: "string", description: "Name of the tool, only on the first publish (otherwise the one in sharebox.json)." },
+        tool: {
+          type: "string",
+          description:
+            "Optional: an existing tool (id, address or name) to update instead of the one in sharebox.json. Use it when you rebuilt the tool in a new folder, so the shared link stays the same.",
+        },
       },
       required: ["folder"],
     },
@@ -128,12 +134,13 @@ export function createMcpHandler(deps: McpDeps) {
       }
       case "sharebox_publish": {
         const client = await deps.client();
-        const r = await publish(client, text("folder"), { name: optional("name") });
+        const r = await publish(client, text("folder"), { name: optional("name"), tool: optional("tool") });
         const parts = [
           m(r.created ? "mcp_created" : "mcp_updated", { name: r.tool.name }),
           m("mcp_address", { url: r.tool.url }),
           m("mcp_version", { version: r.tool.version ?? "-", files: r.files, size: formatBytes(r.bytes), worker: r.worker ? " + worker" : "" }),
         ];
+        if (r.relinked) parts.push(m("relinked", { file: join(resolve(text("folder")), "sharebox.json") }));
         if (r.created) parts.push(m("mcp_private"));
         return parts.join("\n");
       }
