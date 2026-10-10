@@ -18,11 +18,17 @@ interface JsonRpcMessage {
 
 const TOOL_REF = "The tool: absolute path of its folder, or its id, address or name.";
 
+// Annotazioni MCP: dicono al client cosa fa ogni strumento, così può chiedere conferma solo dove serve.
+// - destructiveHint: publish sostituisce la versione in uso; share può anche ridurre un ruolo; unshare toglie un accesso.
+// - openWorldHint: tutto ciò che parla con l'istanza ShareBox (create_project e la guida restano sul computer locale).
+// - idempotentHint: ripetere share o unshare con gli stessi parametri non cambia niente; publish crea ogni volta una versione.
+
 export const TOOLS = [
   {
     name: "sharebox_guide",
     description: "How to build a tool for ShareBox: folder layout, SDK for identity and data, optional worker, limits. Read it before writing the tool.",
     inputSchema: { type: "object", properties: {} },
+    annotations: { title: "ShareBox: how to build a tool", readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
   {
     name: "sharebox_create_project",
@@ -35,6 +41,7 @@ export const TOOLS = [
       },
       required: ["folder", "name"],
     },
+    annotations: { title: "Create a ShareBox project", readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
   },
   {
     name: "sharebox_publish",
@@ -53,16 +60,19 @@ export const TOOLS = [
       },
       required: ["folder"],
     },
+    annotations: { title: "Publish a tool", readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
   },
   {
     name: "sharebox_list",
     description: "List the tools the user can manage, with address and version.",
     inputSchema: { type: "object", properties: {} },
+    annotations: { title: "List my tools", readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
   },
   {
     name: "sharebox_info",
     description: "Details of a tool: address, version and who it is shared with.",
     inputSchema: { type: "object", properties: { tool: { type: "string", description: TOOL_REF } }, required: ["tool"] },
+    annotations: { title: "Tool details", readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
   },
   {
     name: "sharebox_share",
@@ -80,6 +90,7 @@ export const TOOLS = [
       },
       required: ["tool", "with"],
     },
+    annotations: { title: "Share a tool", readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
   },
   {
     name: "sharebox_unshare",
@@ -92,6 +103,7 @@ export const TOOLS = [
       },
       required: ["tool", "with"],
     },
+    annotations: { title: "Remove a share", readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
   },
 ] as const;
 

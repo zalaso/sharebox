@@ -46,6 +46,22 @@ describe("server MCP", () => {
     expect(names.some((n) => /elimina|delete/.test(n))).toBe(false);
   });
 
+  it("ogni strumento dichiara le quattro annotazioni MCP; leggono soltanto guida, elenco e dettagli", async () => {
+    const { handle } = setup();
+    const res = (await handle({ jsonrpc: "2.0", id: 1, method: "tools/list" })) as {
+      result: { tools: { name: string; annotations: Record<string, unknown> }[] };
+    };
+    for (const tool of res.result.tools) {
+      for (const hint of ["readOnlyHint", "destructiveHint", "idempotentHint", "openWorldHint"]) {
+        expect(typeof tool.annotations[hint], `${tool.name}.${hint}`).toBe("boolean");
+      }
+    }
+    const readOnly = res.result.tools.filter((t) => t.annotations.readOnlyHint).map((t) => t.name);
+    expect(readOnly).toEqual(["sharebox_guide", "sharebox_list", "sharebox_info"]);
+    const unshare = res.result.tools.find((t) => t.name === "sharebox_unshare")!;
+    expect(unshare.annotations).toMatchObject({ destructiveHint: true, idempotentHint: true });
+  });
+
   it("le notifiche non ricevono risposta; i metodi sconosciuti un errore", async () => {
     const { handle } = setup();
     expect(await handle({ jsonrpc: "2.0", method: "notifications/initialized" })).toBeNull();
