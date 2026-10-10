@@ -19,7 +19,7 @@ Servizi: `caddy` (HTTPS), `platform` (login, API, dashboard, gateway dei tool), 
 ```bash
 bash /opt/sharebox/deploy/aggiorna.sh
 ```
-Con un clone git scarica la versione nuova; poi ricostruisce le immagini (dal codice sorgente, non serve Node sul PC) e riavvia. Senza git, prima copia sul server i file nuovi del repository, per esempio dal PC: `git archive HEAD | ssh server "tar -x -C /opt/sharebox"`.
+Con un clone git scarica la versione nuova; poi ricostruisce le immagini (dal codice sorgente, non serve Node sul PC) e riavvia. Infine porta i tool già pubblicati al runtime nuovo: l'orchestratore ricrea solo i container con un'immagine o una configurazione superata, con la stessa versione e gli stessi dati (pochi secondi di interruzione per tool); i tool sospesi restano fermi. Lo stesso controllo parte a ogni avvio dell'orchestratore. Senza git, prima copia sul server i file nuovi del repository, per esempio dal PC: `git archive HEAD | ssh server "tar -x -C /opt/sharebox"`.
 
 ## Amministrazione
 Finché la dashboard non le copre tutte, alcune operazioni sono comandi nel container della piattaforma:

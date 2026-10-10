@@ -1,6 +1,7 @@
+import { existsSync } from "node:fs";
 import { expectStatus, type Docker } from "./docker";
 import { pruneVersions, removeToolFiles, versionDir, writeVersion } from "./files";
-import { TOOL_LABEL, assertToolId, assertVersion, containerSpec, names, networkSpec, volumeSpec } from "./spec";
+import { SPEC_LABEL, TOOL_LABEL, assertToolId, assertVersion, containerSpec, names, networkSpec, volumeSpec } from "./spec";
 
 export interface OrchestratorOptions {
   docker: Docker;
@@ -19,6 +20,13 @@ export interface ToolStatus {
   restarts: number;
   startedAt: string | null;
   oomKilled: boolean;
+}
+
+export interface RefreshResult {
+  /** Tool ricreati con l'immagine e la configurazione attuali. */
+  refreshed: string[];
+  upToDate: number;
+  failed: { id: string; error: string }[];
 }
 
 export interface LogLine {
@@ -51,6 +59,7 @@ export function demuxLogs(buffer: Buffer): LogLine[] {
 export class Orchestrator {
   // Operazioni sullo stesso tool una alla volta.
   private readonly queues = new Map<string, Promise<unknown>>();
+  private refreshing: Promise<RefreshResult> | null = null;
 
   constructor(private readonly options: OrchestratorOptions) {}
 
@@ -59,7 +68,7 @@ export class Orchestrator {
     assertToolId(id);
     assertVersion(version);
     return this.serialized(id, async () => {
-      const { docker, toolsDir, hostToolsDir, runtimeImage } = this.options;
+      const { docker, toolsDir } = this.options;
       const n = names(id);
       await writeVersion(toolsDir, id, version, files);
 
@@ -69,11 +78,7 @@ export class Orchestrator {
       await this.connectPlatform(n.network);
       expectStatus(await docker.request("POST", "/volumes/create", volumeSpec(id)), "creazione volume", 201);
 
-      expectStatus(await docker.request("DELETE", `/containers/${n.container}?force=true`), "rimozione container", 204, 404);
-      const spec = containerSpec(id, version, { runtimeImage, hostCodeDir: versionDir(hostToolsDir, id, version) });
-      expectStatus(await docker.request("POST", `/containers/create?name=${n.container}`, spec), "creazione container", 201);
-      expectStatus(await docker.request("POST", `/containers/${n.container}/start`), "avvio container", 204);
-
+      await this.recreate(id, version, true);
       await pruneVersions(toolsDir, id, [version, version - 1]);
     });
   }
@@ -138,6 +143,61 @@ export class Orchestrator {
       const res = await this.options.docker.request("POST", `/containers/${names(id).container}/start`);
       expectStatus(res, "avvio container", 204, 304);
     });
+  }
+
+  /**
+   * Dopo un aggiornamento della piattaforma: ricrea i container dei tool che usano un'immagine del runtime
+   * o una configurazione vecchia. Stessa versione, stessi dati; un tool fermo (sospeso) resta fermo.
+   * Se è già in corso, restituisce lo stesso risultato invece di ripartire.
+   */
+  refreshAll(): Promise<RefreshResult> {
+    this.refreshing ??= this.doRefreshAll().finally(() => {
+      this.refreshing = null;
+    });
+    return this.refreshing;
+  }
+
+  private async doRefreshAll(): Promise<RefreshResult> {
+    const { docker, runtimeImage, hostToolsDir, toolsDir } = this.options;
+    const image = expectStatus(await docker.request("GET", `/images/${encodeURIComponent(runtimeImage)}/json`), "lettura immagine runtime", 200).body as { Id: string };
+    const filters = encodeURIComponent(JSON.stringify({ label: [TOOL_LABEL] }));
+    const containers = expectStatus(await docker.request("GET", `/containers/json?all=1&filters=${filters}`), "elenco container", 200).body as {
+      ImageID: string;
+      State: string;
+      Labels: Record<string, string>;
+    }[];
+    const result: RefreshResult = { refreshed: [], upToDate: 0, failed: [] };
+    for (const container of containers) {
+      const id = container.Labels[TOOL_LABEL] ?? "";
+      const version = Number(container.Labels["sharebox.version"]);
+      try {
+        assertToolId(id);
+        assertVersion(version);
+        const expected = containerSpec(id, version, { runtimeImage, hostCodeDir: versionDir(hostToolsDir, id, version) });
+        if (container.ImageID === image.Id && container.Labels[SPEC_LABEL] === expected.Labels[SPEC_LABEL]) {
+          result.upToDate += 1;
+          continue;
+        }
+        // Senza i file della versione il container nuovo non partirebbe: meglio lasciare quello vecchio.
+        if (!existsSync(versionDir(toolsDir, id, version))) throw new Error(`file della versione ${version} mancanti`);
+        const running = container.State === "running" || container.State === "restarting";
+        await this.serialized(id, () => this.recreate(id, version, running));
+        result.refreshed.push(id);
+      } catch (error) {
+        result.failed.push({ id: id || "?", error: error instanceof Error ? error.message : String(error) });
+      }
+    }
+    return result;
+  }
+
+  /** Container nuovo per una versione già scritta su disco. */
+  private async recreate(id: string, version: number, start: boolean): Promise<void> {
+    const { docker, runtimeImage, hostToolsDir } = this.options;
+    const n = names(id);
+    expectStatus(await docker.request("DELETE", `/containers/${n.container}?force=true`), "rimozione container", 204, 404);
+    const spec = containerSpec(id, version, { runtimeImage, hostCodeDir: versionDir(hostToolsDir, id, version) });
+    expectStatus(await docker.request("POST", `/containers/create?name=${n.container}`, spec), "creazione container", 201);
+    if (start) expectStatus(await docker.request("POST", `/containers/${n.container}/start`), "avvio container", 204);
   }
 
   /** Ricollega la piattaforma a tutte le reti dei tool (serve dopo che il suo container è stato ricreato). */

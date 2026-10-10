@@ -1,7 +1,11 @@
 // Come è fatto il container di un tool (ADR 0005). È l'unico posto che lo decide:
 // la piattaforma non può chiedere opzioni diverse, solo quale tool e quale versione.
 
+import { createHash } from "node:crypto";
+
 export const TOOL_LABEL = "sharebox.tool";
+/** Impronta della configurazione del container: se cambia (o cambia l'immagine), refreshAll lo ricrea. */
+export const SPEC_LABEL = "sharebox.spec";
 
 // Gli id li genera la piattaforma; il controllo protegge nomi Docker e percorsi su disco.
 const TOOL_ID = /^[a-z0-9]{3,32}$/;
@@ -50,7 +54,7 @@ export function volumeSpec(id: string) {
 
 export function containerSpec(id: string, version: number, options: { runtimeImage: string; hostCodeDir: string }) {
   const n = names(id);
-  return {
+  const spec = {
     Image: options.runtimeImage,
     Labels: { [TOOL_LABEL]: id, "sharebox.version": String(version) },
     HostConfig: {
@@ -76,4 +80,6 @@ export function containerSpec(id: string, version: number, options: { runtimeIma
       EndpointsConfig: { [n.network]: { Aliases: [n.alias] } },
     },
   };
+  const fingerprint = createHash("sha256").update(JSON.stringify(spec)).digest("hex").slice(0, 16);
+  return { ...spec, Labels: { ...spec.Labels, [SPEC_LABEL]: fingerprint } };
 }

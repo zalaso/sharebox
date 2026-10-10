@@ -5,6 +5,7 @@
 //   GET    /tools/<id>/status | /tools/<id>/logs?tail=<n>
 //   POST   /tools/<id>/stop | /tools/<id>/start
 //   POST   /sync
+//   POST   /refresh                    ricrea i container superati dopo un aggiornamento
 import { timingSafeEqual } from "node:crypto";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { socketDocker } from "./docker";
@@ -64,6 +65,7 @@ async function handle(req: IncomingMessage): Promise<{ status: number; body: obj
     }
   }
   if (req.method === "POST" && path === "/sync") return { status: 200, body: { networks: await orchestrator.sync() } };
+  if (req.method === "POST" && path === "/refresh") return { status: 200, body: await orchestrator.refreshAll() };
   return { status: 404, body: { error: "non trovato" } };
 }
 
@@ -97,9 +99,14 @@ createServer((req, res) => {
   );
 }).listen(Number(env("PORT", "8081")), env("LISTEN_HOST"), () => {
   console.log("orchestratore pronto");
-  // All'avvio ricollega la piattaforma alle reti dei tool esistenti.
-  orchestrator.sync().then(
-    (count) => console.log(`reti dei tool ricollegate: ${count}`),
-    (error: unknown) => console.error("sync iniziale non riuscito:", error),
-  );
+  // All'avvio ricollega la piattaforma alle reti dei tool esistenti, poi porta i tool al runtime attuale.
+  orchestrator
+    .sync()
+    .then((count) => console.log(`reti dei tool ricollegate: ${count}`))
+    .catch((error: unknown) => console.error("sync iniziale non riuscito:", error))
+    .then(() => orchestrator.refreshAll())
+    .then(
+      (r) => console.log(`tool aggiornati al runtime attuale: ${r.refreshed.length}, già aggiornati: ${r.upToDate}, non riusciti: ${r.failed.length}`),
+      (error: unknown) => console.error("aggiornamento dei tool non riuscito:", error),
+    );
 });

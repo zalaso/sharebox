@@ -1,9 +1,10 @@
-import { mkdtemp, readdir, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Docker, DockerResponse } from "../src/docker";
 import { Orchestrator, demuxLogs } from "../src/orchestrator";
+import { SPEC_LABEL, containerSpec } from "../src/spec";
 
 /** Docker finto: registra le chiamate e risponde secondo lo stato simulato. */
 class FakeDocker implements Docker {
@@ -11,8 +12,13 @@ class FakeDocker implements Docker {
   networks = new Set<string>();
   connected = new Set<string>();
 
+  imageId = "sha256:nuova";
+  toolContainers: { ImageID: string; State: string; Labels: Record<string, string> }[] = [];
+
   async request(method: string, path: string, body?: unknown): Promise<DockerResponse> {
     this.calls.push({ method, path, body });
+    if (method === "GET" && path.startsWith("/images/")) return { status: 200, body: { Id: this.imageId } };
+    if (method === "GET" && path.startsWith("/containers/json?")) return { status: 200, body: this.toolContainers };
     const net = /^\/networks\/([^/?]+)(\/connect|\/disconnect)?$/.exec(path);
     if (method === "GET" && path.startsWith("/networks?")) return { status: 200, body: [...this.networks].map((Name) => ({ Name })) };
     if (method === "GET" && net) return this.networks.has(net[1]!) ? { status: 200, body: {} } : { status: 404, body: { message: "not found" } };
@@ -136,6 +142,53 @@ describe("remove e sync", () => {
     docker.connected = new Set(["sbx-tool-a1a"]);
     expect(await orchestrator.sync()).toBe(2);
     expect(docker.connected).toEqual(new Set(["sbx-tool-a1a", "sbx-tool-b2b"]));
+  });
+});
+
+describe("refreshAll", () => {
+  const labels = (id: string, version: number, spec?: string) => ({
+    "sharebox.tool": id,
+    "sharebox.version": String(version),
+    ...(spec ? { [SPEC_LABEL]: spec } : {}),
+  });
+  const currentSpec = (id: string, version: number) =>
+    containerSpec(id, version, { runtimeImage: "sharebox-runtime:latest", hostCodeDir: join("/opt/sharebox/data/tools", id, `v${version}`) }).Labels[SPEC_LABEL];
+
+  it("ricrea solo i container superati, con la stessa versione; un tool sospeso resta fermo", async () => {
+    for (const [id, v] of [["vecchio", 3], ["sospeso", 1], ["attuale", 2]] as const) await mkdir(join(dir, id, `v${v}`), { recursive: true });
+    docker.toolContainers = [
+      { ImageID: "sha256:vecchia", State: "running", Labels: labels("vecchio", 3) },
+      { ImageID: "sha256:vecchia", State: "exited", Labels: labels("sospeso", 1) },
+      { ImageID: "sha256:nuova", State: "running", Labels: labels("attuale", 2, currentSpec("attuale", 2)) },
+    ];
+    const result = await orchestrator.refreshAll();
+    expect(result).toEqual({ refreshed: ["vecchio", "sospeso"], upToDate: 1, failed: [] });
+    expect(docker.paths().filter((p) => !p.startsWith("GET"))).toEqual([
+      "DELETE /containers/sharebox-tool-vecchio?force=true",
+      "POST /containers/create?name=sharebox-tool-vecchio",
+      "POST /containers/sharebox-tool-vecchio/start",
+      "DELETE /containers/sharebox-tool-sospeso?force=true",
+      "POST /containers/create?name=sharebox-tool-sospeso",
+    ]);
+    const created = docker.calls.find((c) => c.path === "/containers/create?name=sharebox-tool-vecchio")!.body as { Labels: Record<string, string> };
+    expect(created.Labels["sharebox.version"]).toBe("3");
+    expect(created.Labels[SPEC_LABEL]).toBe(currentSpec("vecchio", 3));
+  });
+
+  it("se mancano i file della versione lascia il container com'è e lo segnala", async () => {
+    docker.toolContainers = [{ ImageID: "sha256:vecchia", State: "running", Labels: labels("senzafile", 2) }];
+    const result = await orchestrator.refreshAll();
+    expect(result.refreshed).toEqual([]);
+    expect(result.failed).toEqual([{ id: "senzafile", error: "file della versione 2 mancanti" }]);
+    expect(docker.paths().some((p) => p.startsWith("DELETE"))).toBe(false);
+  });
+
+  it("due richieste insieme fanno un solo giro", async () => {
+    await mkdir(join(dir, "vecchio", "v1"), { recursive: true });
+    docker.toolContainers = [{ ImageID: "sha256:vecchia", State: "running", Labels: labels("vecchio", 1) }];
+    const [a, b] = await Promise.all([orchestrator.refreshAll(), orchestrator.refreshAll()]);
+    expect(a).toBe(b);
+    expect(docker.paths().filter((p) => p.startsWith("POST /containers/create"))).toHaveLength(1);
   });
 });
 
