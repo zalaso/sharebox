@@ -4,8 +4,17 @@
 import { createHash } from "node:crypto";
 
 export const TOOL_LABEL = "sharebox.tool";
-/** Impronta della configurazione del container: se cambia (o cambia l'immagine), refreshAll lo ricrea. */
+/** Impronta della configurazione del container, contenuto del runtime compreso: se cambia, refreshAll lo ricrea. */
 export const SPEC_LABEL = "sharebox.spec";
+
+/**
+ * Impronta del contenuto dell'immagine del runtime (strati e configurazione), non del suo ID:
+ * con lo store containerd di Docker l'ID cambia a ogni build anche quando il contenuto è identico,
+ * e ricreare tutti i tool per questo vorrebbe dire interromperli a ogni aggiornamento senza motivo.
+ */
+export function runtimeFingerprint(image: { RootFS?: unknown; Config?: unknown }): string {
+  return createHash("sha256").update(JSON.stringify([image.RootFS ?? null, image.Config ?? null])).digest("hex").slice(0, 16);
+}
 
 // Gli id li genera la piattaforma; il controllo protegge nomi Docker e percorsi su disco.
 const TOOL_ID = /^[a-z0-9]{3,32}$/;
@@ -52,11 +61,11 @@ export function volumeSpec(id: string) {
   return { Name: names(id).volume, Labels: { [TOOL_LABEL]: id } };
 }
 
-export function containerSpec(id: string, version: number, options: { runtimeImage: string; hostCodeDir: string }) {
+export function containerSpec(id: string, version: number, options: { runtimeImage: string; hostCodeDir: string; runtime: string }) {
   const n = names(id);
   const spec = {
     Image: options.runtimeImage,
-    Labels: { [TOOL_LABEL]: id, "sharebox.version": String(version) },
+    Labels: { [TOOL_LABEL]: id, "sharebox.version": String(version), "sharebox.runtime": options.runtime },
     HostConfig: {
       Runtime: "runsc",
       ReadonlyRootfs: true,

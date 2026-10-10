@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Docker, DockerResponse } from "../src/docker";
 import { Orchestrator, demuxLogs } from "../src/orchestrator";
-import { SPEC_LABEL, containerSpec } from "../src/spec";
+import { SPEC_LABEL, containerSpec, runtimeFingerprint } from "../src/spec";
 
 /** Docker finto: registra le chiamate e risponde secondo lo stato simulato. */
 class FakeDocker implements Docker {
@@ -13,11 +13,16 @@ class FakeDocker implements Docker {
   connected = new Set<string>();
 
   imageId = "sha256:nuova";
-  toolContainers: { ImageID: string; State: string; Labels: Record<string, string> }[] = [];
+  layers = ["sha256:strato-a", "sha256:strato-b"];
+  toolContainers: { State: string; Labels: Record<string, string> }[] = [];
+
+  image() {
+    return { Id: this.imageId, RootFS: { Type: "layers", Layers: this.layers }, Config: { Cmd: ["workerd", "serve"] } };
+  }
 
   async request(method: string, path: string, body?: unknown): Promise<DockerResponse> {
     this.calls.push({ method, path, body });
-    if (method === "GET" && path.startsWith("/images/")) return { status: 200, body: { Id: this.imageId } };
+    if (method === "GET" && path.startsWith("/images/")) return { status: 200, body: this.image() };
     if (method === "GET" && path.startsWith("/containers/json?")) return { status: 200, body: this.toolContainers };
     const net = /^\/networks\/([^/?]+)(\/connect|\/disconnect)?$/.exec(path);
     if (method === "GET" && path.startsWith("/networks?")) return { status: 200, body: [...this.networks].map((Name) => ({ Name })) };
@@ -87,6 +92,7 @@ describe("deploy", () => {
       "POST /networks/create",
       "POST /networks/sbx-tool-abc/connect",
       "POST /volumes/create",
+      "GET /images/sharebox-runtime%3Alatest/json",
       "DELETE /containers/sharebox-tool-abc?force=true",
       "POST /containers/create?name=sharebox-tool-abc",
       "POST /containers/sharebox-tool-abc/start",
@@ -152,14 +158,18 @@ describe("refreshAll", () => {
     ...(spec ? { [SPEC_LABEL]: spec } : {}),
   });
   const currentSpec = (id: string, version: number) =>
-    containerSpec(id, version, { runtimeImage: "sharebox-runtime:latest", hostCodeDir: join("/opt/sharebox/data/tools", id, `v${version}`) }).Labels[SPEC_LABEL];
+    containerSpec(id, version, {
+      runtimeImage: "sharebox-runtime:latest",
+      hostCodeDir: join("/opt/sharebox/data/tools", id, `v${version}`),
+      runtime: runtimeFingerprint(docker.image()),
+    }).Labels[SPEC_LABEL];
 
   it("ricrea solo i container superati, con la stessa versione; un tool sospeso resta fermo", async () => {
     for (const [id, v] of [["vecchio", 3], ["sospeso", 1], ["attuale", 2]] as const) await mkdir(join(dir, id, `v${v}`), { recursive: true });
     docker.toolContainers = [
-      { ImageID: "sha256:vecchia", State: "running", Labels: labels("vecchio", 3) },
-      { ImageID: "sha256:vecchia", State: "exited", Labels: labels("sospeso", 1) },
-      { ImageID: "sha256:nuova", State: "running", Labels: labels("attuale", 2, currentSpec("attuale", 2)) },
+      { State: "running", Labels: labels("vecchio", 3) },
+      { State: "exited", Labels: labels("sospeso", 1) },
+      { State: "running", Labels: labels("attuale", 2, currentSpec("attuale", 2)) },
     ];
     const result = await orchestrator.refreshAll();
     expect(result).toEqual({ refreshed: ["vecchio", "sospeso"], upToDate: 1, failed: [] });
@@ -176,16 +186,26 @@ describe("refreshAll", () => {
   });
 
   it("se mancano i file della versione lascia il container com'è e lo segnala", async () => {
-    docker.toolContainers = [{ ImageID: "sha256:vecchia", State: "running", Labels: labels("senzafile", 2) }];
+    docker.toolContainers = [{ State: "running", Labels: labels("senzafile", 2) }];
     const result = await orchestrator.refreshAll();
     expect(result.refreshed).toEqual([]);
     expect(result.failed).toEqual([{ id: "senzafile", error: "file della versione 2 mancanti" }]);
     expect(docker.paths().some((p) => p.startsWith("DELETE"))).toBe(false);
   });
 
+  it("guarda il contenuto dell'immagine, non il suo ID: una build identica non riavvia i tool", async () => {
+    await mkdir(join(dir, "abc", "v1"), { recursive: true });
+    docker.toolContainers = [{ State: "running", Labels: labels("abc", 1, currentSpec("abc", 1)) }];
+    docker.imageId = "sha256:stessa-build-id-diverso";
+    expect(await orchestrator.refreshAll()).toEqual({ refreshed: [], upToDate: 1, failed: [] });
+
+    docker.layers = [...docker.layers, "sha256:strato-nuovo"]; // il runtime è cambiato davvero
+    expect((await orchestrator.refreshAll()).refreshed).toEqual(["abc"]);
+  });
+
   it("due richieste insieme fanno un solo giro", async () => {
     await mkdir(join(dir, "vecchio", "v1"), { recursive: true });
-    docker.toolContainers = [{ ImageID: "sha256:vecchia", State: "running", Labels: labels("vecchio", 1) }];
+    docker.toolContainers = [{ State: "running", Labels: labels("vecchio", 1) }];
     const [a, b] = await Promise.all([orchestrator.refreshAll(), orchestrator.refreshAll()]);
     expect(a).toBe(b);
     expect(docker.paths().filter((p) => p.startsWith("POST /containers/create"))).toHaveLength(1);

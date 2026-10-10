@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { assertToolId, containerSpec, networkSpec } from "../src/spec";
 
 describe("containerSpec", () => {
-  const spec = containerSpec("abc123", 4, { runtimeImage: "sharebox-runtime:latest", hostCodeDir: "/opt/sharebox/data/tools/abc123/v4" });
+  const spec = containerSpec("abc123", 4, { runtimeImage: "sharebox-runtime:latest", hostCodeDir: "/opt/sharebox/data/tools/abc123/v4", runtime: "r1" });
 
   it("gira in gVisor, in sola lettura, senza privilegi", () => {
     expect(spec.HostConfig).toMatchObject({
