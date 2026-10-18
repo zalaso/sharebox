@@ -126,6 +126,32 @@ const LEGACY_TOOLS: Record<string, string> = {
 };
 const LEGACY_ARGS: Record<string, string> = { cartella: "folder", nome: "name", con: "with", ruolo: "role" };
 
+// La guida è anche una risorsa MCP: i client che leggono le risorse la trovano senza chiamare uno strumento.
+export const GUIDE_URI = "sharebox://guide";
+
+export const RESOURCES = [
+  {
+    uri: GUIDE_URI,
+    name: "sharebox-guide",
+    title: "How to build a ShareBox tool",
+    description: "Folder layout, SDK for identity and data, optional worker, limits, publishing and sharing. The same text as the sharebox_guide tool.",
+    mimeType: "text/markdown",
+  },
+] as const;
+
+// Prompt pronto da usare nei client che li mostrano (es. come comando): costruire, pubblicare e condividere un tool.
+export const PROMPTS = [
+  {
+    name: "build_tool",
+    title: "Build and publish a ShareBox tool",
+    description: "Build a small web tool from a description, publish it on ShareBox and optionally share it.",
+    arguments: [
+      { name: "idea", description: "What the tool should do, e.g. \"a vacation tracker for my team\".", required: true },
+      { name: "share_with", description: "Optional: an email, @domain.com or anyone, to share it with once published.", required: false },
+    ],
+  },
+] as const;
+
 export interface McpDeps {
   /** Client autenticato; lancia un errore comprensibile se manca il login. */
   client: () => Promise<ShareboxClient>;
@@ -216,7 +242,7 @@ export function createMcpHandler(deps: McpDeps) {
       case "initialize":
         return reply({
           protocolVersion: (message.params?.protocolVersion as string | undefined) ?? "2025-06-18",
-          capabilities: { tools: {} },
+          capabilities: { tools: {}, resources: {}, prompts: {} },
           serverInfo: { name: "sharebox", version: deps.version },
           instructions: MCP_INSTRUCTIONS,
         });
@@ -224,6 +250,33 @@ export function createMcpHandler(deps: McpDeps) {
         return reply({});
       case "tools/list":
         return reply({ tools: TOOLS });
+      case "resources/list":
+        return reply({ resources: RESOURCES });
+      case "resources/templates/list":
+        return reply({ resourceTemplates: [] });
+      case "resources/read": {
+        const uri = String(message.params?.uri ?? "");
+        if (uri !== GUIDE_URI) return { jsonrpc: "2.0", id: message.id, error: { code: -32002, message: m("mcp_unknown_resource", { uri }), data: { uri } } };
+        return reply({ contents: [{ uri, mimeType: "text/markdown", text: guide(lang()) }] });
+      }
+      case "prompts/list":
+        return reply({ prompts: PROMPTS });
+      case "prompts/get": {
+        const name = String(message.params?.name ?? "");
+        const args = (message.params?.arguments ?? {}) as Record<string, unknown>;
+        if (name !== "build_tool") return { jsonrpc: "2.0", id: message.id, error: { code: -32602, message: m("mcp_unknown_prompt", { name }) } };
+        const idea = typeof args.idea === "string" ? args.idea.trim() : "";
+        if (!idea) return { jsonrpc: "2.0", id: message.id, error: { code: -32602, message: m("missing_param", { name: "idea" }) } };
+        const shareWith = typeof args.share_with === "string" ? args.share_with.trim() : "";
+        const text = [m("prompt_build", { idea }), shareWith ? m("prompt_share", { with: shareWith }) : m("prompt_private")].join("\n\n");
+        return reply({
+          description: PROMPTS[0].description,
+          messages: [
+            { role: "user", content: { type: "resource", resource: { uri: GUIDE_URI, mimeType: "text/markdown", text: guide(lang()) } } },
+            { role: "user", content: { type: "text", text } },
+          ],
+        });
+      }
       case "tools/call": {
         const name = String(message.params?.name ?? "");
         const args = (message.params?.arguments ?? {}) as Record<string, unknown>;

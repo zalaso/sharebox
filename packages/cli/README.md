@@ -34,6 +34,8 @@ Without a global install, other MCP clients can run `npx -y sharebox-cli mcp` (a
 
 Tools: `sharebox_guide`, `sharebox_create_project`, `sharebox_publish`, `sharebox_list`, `sharebox_info`, `sharebox_share`, `sharebox_rollback`, `sharebox_unshare`. There is deliberately no delete tool: deleting erases data, so it stays in the CLI behind a confirmation.
 
+The guide is also an MCP resource (`sharebox://guide`), and the `build_tool` prompt (arguments `idea` and optional `share_with`) asks the agent to build, publish and optionally share a tool with the guide attached. In Claude Code it shows up as `/mcp__sharebox__build_tool`.
+
 Then just ask: *"Build a vacation tracker for my team and publish it on ShareBox."*
 
 ## Commands

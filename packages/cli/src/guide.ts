@@ -177,5 +177,5 @@ export function guide(lang: Lang): string {
 /** Versione breve, inviata al client MCP all'avvio. In inglese: la legge l'agente, che poi risponde nella lingua dell'utente. */
 export const MCP_INSTRUCTIONS =
   "ShareBox publishes and shares small web tools, with Google sign-in, permissions and data storage built in. " +
-  "Before building a tool for ShareBox call sharebox_guide: it explains the folder layout, the data SDK and the limits. " +
+  "Before building a tool for ShareBox call sharebox_guide (also available as the resource sharebox://guide): it explains the folder layout, the data SDK and the limits. " +
   "To publish use sharebox_publish with the absolute path of the folder; tools start private, share them with sharebox_share.";

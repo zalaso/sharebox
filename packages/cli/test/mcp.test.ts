@@ -26,7 +26,8 @@ describe("server MCP", () => {
       result: { protocolVersion: string; capabilities: object; instructions: string };
     };
     expect(res.result.protocolVersion).toBe("2025-06-18");
-    expect(res.result.capabilities).toEqual({ tools: {} });
+    expect(res.result.capabilities).toEqual({ tools: {}, resources: {}, prompts: {} });
+    expect(res.result.instructions).toContain("sharebox://guide");
     expect(res.result.instructions).toContain("sharebox_guide");
   });
 
@@ -63,10 +64,39 @@ describe("server MCP", () => {
     expect(unshare.annotations).toMatchObject({ destructiveHint: true, idempotentHint: true });
   });
 
+  it("la guida è anche una risorsa MCP; una risorsa sconosciuta dà l'errore previsto", async () => {
+    const { handle } = setup();
+    const list = (await handle({ jsonrpc: "2.0", id: 1, method: "resources/list" })) as { result: { resources: { uri: string; mimeType: string }[] } };
+    expect(list.result.resources).toEqual([expect.objectContaining({ uri: "sharebox://guide", mimeType: "text/markdown" })]);
+    const read = (await handle({ jsonrpc: "2.0", id: 2, method: "resources/read", params: { uri: "sharebox://guide" } })) as {
+      result: { contents: { uri: string; text: string }[] };
+    };
+    expect(read.result.contents[0]!.text).toContain("sharebox.collection");
+    expect(await handle({ jsonrpc: "2.0", id: 3, method: "resources/read", params: { uri: "sharebox://altro" } })).toMatchObject({ error: { code: -32002 } });
+  });
+
+  it("il prompt build_tool allega la guida e chiede di pubblicare, e di condividere solo se indicato", async () => {
+    const { handle } = setup();
+    const list = (await handle({ jsonrpc: "2.0", id: 1, method: "prompts/list" })) as { result: { prompts: { name: string }[] } };
+    expect(list.result.prompts.map((p) => p.name)).toEqual(["build_tool"]);
+    type Got = { result: { messages: { content: { type: string; text?: string; resource?: { uri: string } } }[] } };
+    const get = (args: Record<string, string>) => handle({ jsonrpc: "2.0", id: 2, method: "prompts/get", params: { name: "build_tool", arguments: args } });
+
+    const shared = (await get({ idea: "un tracker delle ferie", share_with: "@azienda.com" })) as Got;
+    expect(shared.result.messages[0]!.content).toMatchObject({ type: "resource", resource: { uri: "sharebox://guide" } });
+    expect(shared.result.messages[1]!.content.text).toContain("un tracker delle ferie");
+    expect(shared.result.messages[1]!.content.text).toContain("@azienda.com");
+    const privateTool = (await get({ idea: "un modulo" })) as Got;
+    expect(privateTool.result.messages[1]!.content.text).toContain("privato");
+
+    expect(await get({})).toMatchObject({ error: { code: -32602 } });
+    expect(await handle({ jsonrpc: "2.0", id: 3, method: "prompts/get", params: { name: "altro" } })).toMatchObject({ error: { code: -32602 } });
+  });
+
   it("le notifiche non ricevono risposta; i metodi sconosciuti un errore", async () => {
     const { handle } = setup();
     expect(await handle({ jsonrpc: "2.0", method: "notifications/initialized" })).toBeNull();
-    expect(await handle({ jsonrpc: "2.0", id: 7, method: "resources/list" })).toMatchObject({ id: 7, error: { code: -32601 } });
+    expect(await handle({ jsonrpc: "2.0", id: 7, method: "metodo/inesistente" })).toMatchObject({ id: 7, error: { code: -32601 } });
   });
 
   it("crea un progetto, lo pubblica, lo condivide e mostra le condivisioni", async () => {
