@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { expectStatus, type Docker } from "./docker";
-import { copyVersion, pruneVersions, removeToolFiles, versionDir, writeVersion } from "./files";
+import { copyVersion, pruneVersions, readEgressToken, removeToolFiles, versionDir, writeEgressToken, writeVersion } from "./files";
 import { SPEC_LABEL, TOOL_LABEL, assertToolId, assertVersion, containerSpec, names, networkSpec, runtimeFingerprint, volumeSpec } from "./spec";
 
 export interface OrchestratorOptions {
@@ -12,6 +12,8 @@ export interface OrchestratorOptions {
   runtimeImage: string;
   /** Container della piattaforma, da collegare alla rete di ogni tool. */
   platformContainer: string;
+  /** Porta del proxy di uscita della piattaforma (ADR 0009). */
+  egressPort?: number;
 }
 
 export interface ToolStatus {
@@ -64,13 +66,14 @@ export class Orchestrator {
   constructor(private readonly options: OrchestratorOptions) {}
 
   /** Pubblica (o ripubblica) una versione: stessi rete e volume dati, container nuovo. */
-  async deploy(id: string, version: number, files: ReadonlyMap<string, Uint8Array>): Promise<void> {
+  async deploy(id: string, version: number, files: ReadonlyMap<string, Uint8Array>, egressToken: string | null = null): Promise<void> {
     assertToolId(id);
     assertVersion(version);
     return this.serialized(id, async () => {
       const { docker, toolsDir } = this.options;
       const n = names(id);
       await writeVersion(toolsDir, id, version, files);
+      await writeEgressToken(toolsDir, id, egressToken);
 
       const network = await docker.request("GET", `/networks/${n.network}`);
       if (network.status === 404) expectStatus(await docker.request("POST", "/networks/create", networkSpec(id)), "creazione rete", 201);
@@ -88,13 +91,14 @@ export class Orchestrator {
    * Torna ai file della versione `from` pubblicandoli come versione nuova `to` (le versioni crescono sempre).
    * Resta su disco anche la versione da cui si torna indietro, così il rollback si può annullare.
    */
-  async rollback(id: string, from: number, to: number, start: boolean, entry: Uint8Array): Promise<void> {
+  async rollback(id: string, from: number, to: number, start: boolean, entry: Uint8Array, egressToken: string | null = null): Promise<void> {
     assertToolId(id);
     assertVersion(from);
     assertVersion(to);
     return this.serialized(id, async () => {
       const { toolsDir } = this.options;
       await copyVersion(toolsDir, id, from, to, entry);
+      await writeEgressToken(toolsDir, id, egressToken);
       await this.recreate(id, to, start, await this.runtime());
       await pruneVersions(toolsDir, id, [to, to - 1]);
     });
@@ -192,7 +196,8 @@ export class Orchestrator {
       try {
         assertToolId(id);
         assertVersion(version);
-        const expected = containerSpec(id, version, { runtimeImage, hostCodeDir: versionDir(hostToolsDir, id, version), runtime });
+        const env = await this.env(id);
+        const expected = containerSpec(id, version, { runtimeImage, hostCodeDir: versionDir(hostToolsDir, id, version), runtime, env });
         if (container.Labels[SPEC_LABEL] === expected.Labels[SPEC_LABEL]) {
           result.upToDate += 1;
           continue;
@@ -207,6 +212,22 @@ export class Orchestrator {
       }
     }
     return result;
+  }
+
+  /**
+   * Variabili per il runtime del tool: indirizzo del proxy di uscita (la piattaforma sulla rete del tool) e token.
+   * Vuote se il tool non ha uscita: il runtime allora rifiuta ogni richiesta verso l'esterno.
+   */
+  private async env(id: string): Promise<string[]> {
+    const { docker, toolsDir, platformContainer, egressPort = 8091 } = this.options;
+    const token = await readEgressToken(toolsDir, id);
+    if (!token) return ["SHAREBOX_EGRESS_URL=", "SHAREBOX_EGRESS_TOKEN="];
+    const platform = expectStatus(await docker.request("GET", `/containers/${platformContainer}/json`), "lettura piattaforma", 200).body as {
+      NetworkSettings?: { Networks?: Record<string, { IPAddress?: string }> };
+    };
+    const ip = platform.NetworkSettings?.Networks?.[names(id).network]?.IPAddress;
+    if (!ip) throw new Error("la piattaforma non è collegata alla rete del tool");
+    return [`SHAREBOX_EGRESS_URL=http://${ip}:${egressPort}`, `SHAREBOX_EGRESS_TOKEN=${token}`];
   }
 
   /** Impronta del contenuto dell'immagine del runtime attuale. */
@@ -225,7 +246,8 @@ export class Orchestrator {
   private async recreate(id: string, version: number, start: boolean, runtime: string): Promise<void> {
     const { docker, runtimeImage, hostToolsDir } = this.options;
     const n = names(id);
-    const spec = containerSpec(id, version, { runtimeImage, hostCodeDir: versionDir(hostToolsDir, id, version), runtime });
+    const env = await this.env(id);
+    const spec = containerSpec(id, version, { runtimeImage, hostCodeDir: versionDir(hostToolsDir, id, version), runtime, env });
     expectStatus(await docker.request("DELETE", `/containers/${n.next}?force=true`), "rimozione container", 204, 404);
     expectStatus(await docker.request("POST", `/containers/create?name=${n.next}`, spec), "creazione container", 201);
     expectStatus(await docker.request("DELETE", `/containers/${n.container}?force=true`), "rimozione container", 204, 404);

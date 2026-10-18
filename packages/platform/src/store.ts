@@ -17,6 +17,16 @@ export interface Tool {
   name: string;
   ownerEmail: string;
   status: "active" | "suspended";
+  /** Domini raggiungibili dal tool (ADR 0009); vuoto = nessuna uscita. */
+  networkAllow: string[];
+}
+
+export interface ToolSecret {
+  name: string;
+  /** Il segreto viene inserito solo nelle richieste verso questo dominio. */
+  host: string;
+  updatedAt: number;
+  updatedBy: string;
 }
 
 export type SessionKind = "platform" | "tool";
@@ -205,7 +215,7 @@ export class Store {
 
   // Tool e condivisioni
 
-  createTool(tool: Omit<Tool, "status">): Tool {
+  createTool(tool: Omit<Tool, "status" | "networkAllow">): Tool {
     this.db
       .prepare("INSERT INTO tools (id, slug, name, owner_email, created_at) VALUES (?, ?, ?, ?, ?)")
       .run(tool.id, tool.slug, tool.name, tool.ownerEmail, this.now());
@@ -224,6 +234,50 @@ export class Store {
 
   listTools(): Tool[] {
     return (this.db.prepare("SELECT * FROM tools ORDER BY slug").all() as Row[]).map(toTool);
+  }
+
+  // Uscita controllata e segreti (ADR 0009)
+
+  setNetworkAllow(toolId: string, allow: readonly string[]): void {
+    this.db.prepare("UPDATE tools SET network_allow = ? WHERE id = ?").run(JSON.stringify(allow), toolId);
+  }
+
+  /** Salva solo l'hash del token di uscita; null lo toglie (il tool torna senza rete). */
+  setEgressToken(toolId: string, tokenHash: string | null): void {
+    this.db.prepare("UPDATE tools SET egress_token_hash = ? WHERE id = ?").run(tokenHash, toolId);
+  }
+
+  toolByEgressToken(tokenHash: string): Tool | null {
+    const row = this.db.prepare("SELECT * FROM tools WHERE egress_token_hash = ?").get(tokenHash) as Row | undefined;
+    return row ? toTool(row) : null;
+  }
+
+  listSecrets(toolId: string): ToolSecret[] {
+    const rows = this.db.prepare("SELECT name, host, updated_at, updated_by FROM tool_secrets WHERE tool_id = ? ORDER BY name").all(toolId) as Row[];
+    return rows.map((row) => ({
+      name: row.name as string,
+      host: row.host as string,
+      updatedAt: row.updated_at as number,
+      updatedBy: row.updated_by as string,
+    }));
+  }
+
+  /** Valori ancora cifrati: li decifra solo il proxy di uscita, al momento della richiesta. */
+  secretValues(toolId: string): { name: string; host: string; value: string }[] {
+    return this.db.prepare("SELECT name, host, value FROM tool_secrets WHERE tool_id = ?").all(toolId) as { name: string; host: string; value: string }[];
+  }
+
+  setSecret(toolId: string, secret: { name: string; host: string; value: string }, actorEmail: string): void {
+    this.db
+      .prepare(
+        "INSERT INTO tool_secrets (tool_id, name, host, value, updated_at, updated_by) VALUES (?, ?, ?, ?, ?, ?) " +
+          "ON CONFLICT (tool_id, name) DO UPDATE SET host = excluded.host, value = excluded.value, updated_at = excluded.updated_at, updated_by = excluded.updated_by",
+      )
+      .run(toolId, secret.name, secret.host, secret.value, this.now(), actorEmail);
+  }
+
+  removeSecret(toolId: string, name: string): boolean {
+    return Number(this.db.prepare("DELETE FROM tool_secrets WHERE tool_id = ? AND name = ?").run(toolId, name).changes) > 0;
   }
 
   countToolsOwnedBy(email: string): number {
@@ -352,6 +406,7 @@ function toTool(row: Row): Tool {
     name: row.name as string,
     ownerEmail: row.owner_email as string,
     status: row.status as Tool["status"],
+    networkAllow: JSON.parse((row.network_allow as string | undefined) ?? "[]") as string[],
   };
 }
 

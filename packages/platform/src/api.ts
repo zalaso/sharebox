@@ -4,6 +4,9 @@
 //   POST   /api/tools                  { name }                       → crea il tool (solo creatori)
 //   POST   /api/tools/<id>/deploy      { files: {…}, worker?: "…" }   → pubblica una nuova versione
 //   POST   /api/tools/<id>/rollback                                → torna ai file della versione precedente
+//   GET    /api/tools/<id>/secrets                                 → nomi e domini dei segreti (mai i valori)
+//   PUT    /api/tools/<id>/secrets/<NOME> { value, host }          → imposta un segreto (ADR 0009)
+//   DELETE /api/tools/<id>/secrets/<NOME>
 //   DELETE /api/tools/<id>                                             → elimina tool e dati (solo proprietario)
 //   GET    /api/tools/<id>                                             → dettagli e condivisioni
 //   PUT    /api/tools/<id>/grants      { type, value?, role }         → condivide (o cambia ruolo)
@@ -14,14 +17,28 @@
 //   POST   /api/tools/<id>/suspend | resume                            → sospende (ferma il container) o riattiva
 //   GET    /api/tokens, DELETE /api/tokens/<id>                        → computer collegati dell'utente
 // Autenticazione: token (CLI, agenti) oppure sessione del browser con Sec-Fetch-Site: same-origin (dashboard).
-import { PLATFORM_DIR, bundleProblem, describeBundleProblem, describePathProblem, pathProblem, type Lang, type Principal, type Role } from "@sharebox/shared";
+import {
+  PLATFORM_DIR,
+  bundleProblem,
+  describeBundleProblem,
+  describeNetworkProblem,
+  describePathProblem,
+  parseNetworkAllow,
+  pathProblem,
+  type Lang,
+  type Principal,
+  type Role,
+} from "@sharebox/shared";
 import { effectiveRole } from "./access";
 import type { Config } from "./config";
 import { PLATFORM_SESSION_COOKIE, readCookie } from "./cookies";
-import { randomId } from "./crypto";
+import { encryptSecret, hashToken, randomId, randomToken, secretsKey } from "./crypto";
 import { langOf, t, type MessageKey, type Params } from "./messages";
 import { OrchestratorError, type Orchestrator } from "./orchestrator-client";
 import type { Store, Tool, User } from "./store";
+
+// Nomi dei segreti: come le variabili d'ambiente, così si riconoscono nel codice del tool.
+const SECRET_NAME = /^[A-Z][A-Z0-9_]{0,63}$/;
 
 const MAX_BODY_BYTES = 40 * 1024 * 1024;
 export const MAX_TOOLS_PER_CREATOR = 20;
@@ -32,6 +49,8 @@ export interface ApiDeps {
   orchestrator: Orchestrator;
   /** Codice del runtime (packages/runtime) aggiunto a ogni tool come `_sharebox/entry.js`. */
   runtimeEntry: string;
+  /** Chiave per cifrare i segreti dei tool; predefinita: derivata dal token dell'orchestratore. */
+  secretsKey?: Buffer;
 }
 
 /** Errore da mostrare a chi chiama l'API, nella sua lingua (il testo si sceglie alla risposta). */
@@ -50,6 +69,12 @@ function fail(status: number, key: MessageKey, params?: Params): ApiError {
 
 export function createApi(deps: ApiDeps): (request: Request) => Promise<Response> {
   const { config, store, orchestrator } = deps;
+  const key = deps.secretsKey ?? secretsKey(config.orchestratorToken);
+
+  /** Nuovo token di uscita per il tool, se ha domini permessi; nel database finisce solo l'hash. */
+  function egressTokenFor(allow: readonly string[]): string | null {
+    return allow.length > 0 ? randomToken() : null;
+  }
   const toolUrl = (tool: Tool) => `https://${tool.slug}.${config.toolsDomain}/`;
   const describe = (tool: Tool, role: Role) => ({
     id: tool.id,
@@ -61,6 +86,7 @@ export function createApi(deps: ApiDeps): (request: Request) => Promise<Response
     owner: tool.ownerEmail,
     version: store.latestDeployment(tool.id)?.version ?? null,
     publishedAt: store.latestDeployment(tool.id)?.createdAt ?? null,
+    network: { allow: tool.networkAllow },
   });
 
   /** Il tool, se l'utente può gestirlo. Chi non ha accesso riceve 404: non si rivela che il tool esiste. */
@@ -93,8 +119,10 @@ export function createApi(deps: ApiDeps): (request: Request) => Promise<Response
 
   async function deploy(user: User, request: Request, id: string): Promise<Response> {
     const tool = managedTool(user, id);
-    const body = (await readJson(request)) as { files?: unknown; worker?: unknown };
+    const body = (await readJson(request)) as { files?: unknown; worker?: unknown; network?: { allow?: unknown } };
     if (!body.files || typeof body.files !== "object") throw fail(400, "api.files_missing");
+    const network = parseNetworkAllow(body.network?.allow);
+    if ("problem" in network) throw new ApiError(400, (lang) => describeNetworkProblem(network.problem, lang));
 
     // I file del creatore vanno in public/, il suo worker e il runtime in _sharebox/: non può sovrascriverli.
     const decoded = new Map<string, Uint8Array>();
@@ -113,8 +141,9 @@ export function createApi(deps: ApiDeps): (request: Request) => Promise<Response
 
     const version = store.nextVersion(tool.id);
     const files = Object.fromEntries([...decoded].map(([path, content]) => [path, Buffer.from(content).toString("base64")]));
+    const egressToken = egressTokenFor(network.allow);
     try {
-      await orchestrator.deploy(tool.id, version, files);
+      await orchestrator.deploy(tool.id, version, files, egressToken);
     } catch (error) {
       if (error instanceof OrchestratorError && error.status === 400) throw new ApiError(400, () => error.message);
       console.error(`Pubblicazione di ${tool.id} non riuscita:`, error);
@@ -122,9 +151,17 @@ export function createApi(deps: ApiDeps): (request: Request) => Promise<Response
     }
 
     const bytes = [...decoded.values()].reduce((sum, content) => sum + content.byteLength, 0);
+    store.setNetworkAllow(tool.id, network.allow);
+    store.setEgressToken(tool.id, egressToken ? hashToken(egressToken) : null);
     store.recordDeployment(tool.id, { version, actorEmail: user.email, files: decoded.size, bytes });
-    store.audit({ actor: user.email, channel: channel(request), action: "tool.deploy", toolId: tool.id, details: { version, files: decoded.size, bytes } });
-    return json(200, describe(tool, "manage"));
+    store.audit({
+      actor: user.email,
+      channel: channel(request),
+      action: "tool.deploy",
+      toolId: tool.id,
+      details: { version, files: decoded.size, bytes, ...(network.allow.length ? { network: network.allow } : {}) },
+    });
+    return json(200, describe(store.toolById(tool.id)!, "manage"));
   }
 
   /**
@@ -138,8 +175,9 @@ export function createApi(deps: ApiDeps): (request: Request) => Promise<Response
     if (!current || !previous) throw fail(400, "api.no_previous");
 
     const version = store.nextVersion(tool.id);
+    const egressToken = egressTokenFor(tool.networkAllow);
     try {
-      await orchestrator.rollback(tool.id, previous.version, version, tool.status === "active", Buffer.from(deps.runtimeEntry).toString("base64"));
+      await orchestrator.rollback(tool.id, previous.version, version, tool.status === "active", Buffer.from(deps.runtimeEntry).toString("base64"), egressToken);
     } catch (error) {
       // 400 dall'orchestratore: i file di quella versione non sono più sul server.
       if (error instanceof OrchestratorError && error.status === 400) throw fail(400, "api.no_previous");
@@ -147,6 +185,7 @@ export function createApi(deps: ApiDeps): (request: Request) => Promise<Response
       throw fail(502, "api.rollback_failed");
     }
 
+    store.setEgressToken(tool.id, egressToken ? hashToken(egressToken) : null);
     store.recordDeployment(tool.id, { version, actorEmail: user.email, files: previous.files, bytes: previous.bytes });
     store.audit({
       actor: user.email,
@@ -156,6 +195,26 @@ export function createApi(deps: ApiDeps): (request: Request) => Promise<Response
       details: { version, restored: previous.version, from: current.version },
     });
     return json(200, describe(tool, "manage"));
+  }
+
+  /** Segreti del tool: si leggono solo nomi e domini; i valori li usa il proxy di uscita. */
+  async function setSecret(user: User, request: Request, id: string, name: string): Promise<Response> {
+    const tool = managedTool(user, id);
+    if (!SECRET_NAME.test(name)) throw fail(400, "api.invalid_secret_name");
+    const body = (await readJson(request)) as { value?: unknown; host?: unknown };
+    if (typeof body.value !== "string" || !body.value || body.value.length > 8192) throw fail(400, "api.invalid_secret_value");
+    const host = parseNetworkAllow([body.host]);
+    if ("problem" in host || host.allow.length !== 1) throw fail(400, "api.invalid_secret_host");
+    store.setSecret(tool.id, { name, host: host.allow[0]!, value: encryptSecret(key, body.value) }, user.email);
+    store.audit({ actor: user.email, channel: channel(request), action: "secret.set", toolId: tool.id, details: { name, host: host.allow[0] } });
+    return json(200, { secrets: store.listSecrets(tool.id) });
+  }
+
+  async function removeSecret(user: User, request: Request, id: string, name: string): Promise<Response> {
+    const tool = managedTool(user, id);
+    if (!store.removeSecret(tool.id, name)) throw fail(404, "api.secret_not_found");
+    store.audit({ actor: user.email, channel: channel(request), action: "secret.remove", toolId: tool.id, details: { name } });
+    return json(200, { secrets: store.listSecrets(tool.id) });
   }
 
   async function remove(user: User, request: Request, id: string): Promise<Response> {
@@ -176,6 +235,7 @@ export function createApi(deps: ApiDeps): (request: Request) => Promise<Response
     return {
       ...describe(tool, "manage"),
       grants: store.grantsFor(tool.id).map(({ principal, role }) => ({ ...principalJson(principal), role })),
+      secrets: store.listSecrets(tool.id).map(({ name, host }) => ({ name, host })),
     };
   }
 
@@ -263,6 +323,10 @@ export function createApi(deps: ApiDeps): (request: Request) => Promise<Response
     if (deployMatch && request.method === "POST") return deploy(user, request, deployMatch[1]!);
     const rollbackMatch = /^\/api\/tools\/([a-z0-9]+)\/rollback$/.exec(path);
     if (rollbackMatch && request.method === "POST") return rollback(user, request, rollbackMatch[1]!);
+    const secretsMatch = /^\/api\/tools\/([a-z0-9]+)\/secrets(?:\/([^/]+))?$/.exec(path);
+    if (secretsMatch && !secretsMatch[2] && request.method === "GET") return json(200, { secrets: store.listSecrets(managedTool(user, secretsMatch[1]!).id) });
+    if (secretsMatch && secretsMatch[2] && request.method === "PUT") return setSecret(user, request, secretsMatch[1]!, decodeURIComponent(secretsMatch[2]));
+    if (secretsMatch && secretsMatch[2] && request.method === "DELETE") return removeSecret(user, request, secretsMatch[1]!, decodeURIComponent(secretsMatch[2]));
     const toolMatch = /^\/api\/tools\/([a-z0-9]+)$/.exec(path);
     if (toolMatch && request.method === "DELETE") return remove(user, request, toolMatch[1]!);
     if (toolMatch && request.method === "GET") return json(200, details(managedTool(user, toolMatch[1]!)));

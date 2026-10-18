@@ -12,6 +12,7 @@ Documento di riferimento. Le decisioni con alternative scartate sono negli ADR i
 | Codice server | `worker.ts` supportato già nell'MVP | [0004](adr/0004-worker-ts-nell-mvp.md) |
 | Processi | Gateway e API in un solo processo `platform` con SQLite | [0007](adr/0007-processo-unico-platform.md) |
 | Container dei tool | Li crea solo l'orchestratore, con specifica fissa e sicura | [0008](adr/0008-orchestratore.md) |
+| Uscita verso internet | Solo verso i domini dichiarati, tramite il proxy della piattaforma; segreti cifrati; CSP sulle pagine | [0009](adr/0009-uscita-controllata.md) |
 | Costo | Nessuno oltre al server già pagato | |
 
 Nomi usati qui: `sharebox.example.com` = piattaforma · `esempio.duckdns.org` = tool.

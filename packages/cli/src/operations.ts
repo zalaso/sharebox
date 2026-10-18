@@ -1,8 +1,9 @@
 // Operazioni condivise da CLI e server MCP.
 import { existsSync, statSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
+import { describeNetworkProblem, parseNetworkAllow } from "@sharebox/shared";
 import { ShareboxError, type Grant, type Role, type ShareboxClient, type ToolInfo } from "./client";
-import { m } from "./i18n";
+import { lang, m } from "./i18n";
 import { ProjectError, bundleWorker, collectPublic, findWorker, readManifest, writeManifest } from "./project";
 
 export interface PublishResult {
@@ -24,6 +25,8 @@ export async function publish(client: ShareboxClient, dir: string, options: { na
   const folder = resolve(dir);
   if (!existsSync(folder) || !statSync(folder).isDirectory()) throw new ProjectError(m("folder_not_found", { folder }));
   const manifest = await readManifest(folder);
+  const network = parseNetworkAllow(manifest.network?.allow);
+  if ("problem" in network) throw new ProjectError(`sharebox.json: ${describeNetworkProblem(network.problem, lang())}`);
   const workerEntry = findWorker(folder);
   const publicFiles = await collectPublic(folder);
   if (publicFiles.count === 0 && !workerEntry) {
@@ -53,7 +56,7 @@ export async function publish(client: ShareboxClient, dir: string, options: { na
   }
   let tool: ToolInfo;
   try {
-    tool = await client.deploy(id, publicFiles.files, worker);
+    tool = await client.deploy(id, publicFiles.files, worker, { allow: network.allow });
   } catch (error) {
     // Tipico con una cartella copiata da un'altra istanza o con un tool eliminato: l'id non esiste qui.
     if (!created && error instanceof ShareboxError && error.status === 404) {

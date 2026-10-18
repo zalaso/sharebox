@@ -4,8 +4,9 @@
 #   bash /opt/sharebox/deploy/checks/isolamento.sh
 # From inside each tool's container it opens TCP connections to the tool itself, the other tools,
 # the platform, the orchestrator, the host and the internet, and fails if anything but the tool
-# itself is reachable. It checks the network layer; the second layer (workerd refusing every
-# outbound fetch) is set in deploy/runtime/config.capnp.
+# itself and the platform's egress proxy (token-only, ADR 0009) is reachable. It checks the network
+# layer; the second layer (workerd sending every outbound fetch through the egress worker, which refuses
+# it unless the tool declared the domain) is set in deploy/runtime/config.capnp.
 # It uses IP addresses, not names: Docker's DNS does not work inside gVisor containers.
 #
 # Verifica dell'isolamento di rete: ogni tool pubblicato deve raggiungere solo se stesso.
@@ -61,7 +62,9 @@ EOF
 fail=0
 for t in "${TOOLS[@]}"; do
   # host|port|should be reachable|label
-  targets="${TOOL_IP[$t]}|8080|yes|itself ${GW_IP[$t]}|8080|no|platform-(own-network)"
+  # The platform's egress proxy (port 8091, ADR 0009) is the one thing a tool may reach besides itself:
+  # it only answers requests carrying that tool's token.
+  targets="${TOOL_IP[$t]}|8080|yes|itself ${GW_IP[$t]}|8080|no|platform-(own-network) ${GW_IP[$t]}|8091|yes|platform-egress-proxy"
   for o in "${TOOLS[@]}"; do
     [ "$o" = "$t" ] || targets+=" ${TOOL_IP[$o]}|8080|no|tool-$o ${GW_IP[$o]}|8080|no|platform-($o-network)"
   done

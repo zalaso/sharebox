@@ -69,6 +69,7 @@ export function createToolAuthenticator(deps: { config: Config; store: Store }) 
       identity: { email: user.email, name: user.name, hostedDomain: user.hostedDomain ?? undefined },
       role,
       upstream: `http://tool-${tool.id}:8080`,
+      connect: tool.networkAllow,
     };
   };
 }

@@ -16,11 +16,12 @@ export function testConfig(): Config {
     runtimeEntryPath: "",
     dashboardDir: "",
     cliTarballPath: "",
+    egressPort: 8091,
   };
 }
 
 /** Tool già pubblicato (versione 1), come dopo `sharebox publish`. */
-export function publishedTool(store: Store, tool: Omit<Tool, "status">): Tool {
+export function publishedTool(store: Store, tool: Omit<Tool, "status" | "networkAllow">): Tool {
   const created = store.createTool(tool);
   store.recordDeployment(created.id, { version: 1, actorEmail: tool.ownerEmail, files: 1, bytes: 10 });
   return created;

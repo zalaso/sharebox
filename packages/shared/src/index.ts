@@ -11,6 +11,7 @@ export {
   type PathProblem,
 } from "./bundle";
 export { format, pickLang, type Lang } from "./i18n";
+export { NETWORK_LIMITS, describeNetworkProblem, hostAllowed, parseNetworkAllow, type NetworkProblem } from "./network";
 
 /** Header con cui il gateway comunica al tool chi lo sta usando. */
 export const IDENTITY_HEADERS = {
@@ -55,4 +56,6 @@ export interface ToolManifest {
   /** Assegnato al primo publish; ripubblicare con lo stesso id aggiorna lo stesso tool. */
   id?: string;
   name: string;
+  /** Domini raggiungibili dal tool, dal worker e dal browser (ADR 0009). */
+  network?: { allow?: string[] };
 }

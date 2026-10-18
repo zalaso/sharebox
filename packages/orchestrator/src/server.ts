@@ -1,10 +1,10 @@
 // Orchestratore: l'unico processo con accesso a Docker. Raggiungibile solo dalla piattaforma,
 // sulla rete interna "control", con un token condiviso.
-//   PUT    /tools/<id>/versions/<n>   { files: { "<percorso>": "<base64>" } }
+//   PUT    /tools/<id>/versions/<n>   { files: { "<percorso>": "<base64>" }, egressToken?: "…" }
 //   DELETE /tools/<id>
 //   GET    /tools/<id>/status | /tools/<id>/logs?tail=<n>
 //   POST   /tools/<id>/stop | /tools/<id>/start
-//   POST   /tools/<id>/rollback       { from, to, start, entry: "<base64>" }
+//   POST   /tools/<id>/rollback       { from, to, start, entry: "<base64>", egressToken?: "…" }
 //   POST   /sync
 //   POST   /refresh                    ricrea i container superati dopo un aggiornamento
 import { timingSafeEqual } from "node:crypto";
@@ -28,6 +28,7 @@ const orchestrator = new Orchestrator({
   hostToolsDir: env("HOST_TOOLS_DIR"),
   runtimeImage: env("RUNTIME_IMAGE"),
   platformContainer: env("PLATFORM_CONTAINER"),
+  egressPort: Number(env("EGRESS_PORT", "8091")),
 });
 
 async function handle(req: IncomingMessage): Promise<{ status: number; body: object }> {
@@ -37,10 +38,10 @@ async function handle(req: IncomingMessage): Promise<{ status: number; body: obj
   const path = new URL(req.url ?? "/", "http://orchestrator").pathname;
   const deploy = /^\/tools\/([^/]+)\/versions\/(\d+)$/.exec(path);
   if (req.method === "PUT" && deploy) {
-    const { files } = (await readJson(req)) as { files?: Record<string, string> };
+    const { files, egressToken } = (await readJson(req)) as { files?: Record<string, string>; egressToken?: unknown };
     if (!files || typeof files !== "object") throw new InvalidRequest("manca l'elenco dei file");
     const decoded = new Map(Object.entries(files).map(([name, b64]) => [name, Buffer.from(String(b64), "base64")] as const));
-    await orchestrator.deploy(deploy[1]!, Number(deploy[2]), decoded);
+    await orchestrator.deploy(deploy[1]!, Number(deploy[2]), decoded, egressTokenOf(egressToken));
     return { status: 200, body: { ok: true } };
   }
   const tool = /^\/tools\/([^/]+)$/.exec(path);
@@ -50,9 +51,15 @@ async function handle(req: IncomingMessage): Promise<{ status: number; body: obj
   }
   const rollback = /^\/tools\/([^/]+)\/rollback$/.exec(path);
   if (req.method === "POST" && rollback) {
-    const { from, to, start, entry } = (await readJson(req)) as { from?: unknown; to?: unknown; start?: unknown; entry?: unknown };
+    const { from, to, start, entry, egressToken } = (await readJson(req)) as {
+      from?: unknown;
+      to?: unknown;
+      start?: unknown;
+      entry?: unknown;
+      egressToken?: unknown;
+    };
     if (typeof entry !== "string" || !entry) throw new InvalidRequest("manca il runtime (entry)");
-    await orchestrator.rollback(rollback[1]!, Number(from), Number(to), start !== false, Buffer.from(entry, "base64"));
+    await orchestrator.rollback(rollback[1]!, Number(from), Number(to), start !== false, Buffer.from(entry, "base64"), egressTokenOf(egressToken));
     return { status: 200, body: { ok: true } };
   }
   const action = /^\/tools\/([^/]+)\/(status|logs|stop|start)$/.exec(path);
@@ -75,6 +82,13 @@ async function handle(req: IncomingMessage): Promise<{ status: number; body: obj
   if (req.method === "POST" && path === "/sync") return { status: 200, body: { networks: await orchestrator.sync() } };
   if (req.method === "POST" && path === "/refresh") return { status: 200, body: await orchestrator.refreshAll() };
   return { status: 404, body: { error: "non trovato" } };
+}
+
+/** Il token finisce in una variabile d'ambiente: solo caratteri sicuri. */
+function egressTokenOf(value: unknown): string | null {
+  if (value === undefined || value === null || value === "") return null;
+  if (typeof value !== "string" || !/^[A-Za-z0-9_-]{32,128}$/.test(value)) throw new InvalidRequest("token di uscita non valido");
+  return value;
 }
 
 async function readJson(req: IncomingMessage): Promise<unknown> {

@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash, hkdfSync, randomBytes } from "node:crypto";
 
 /** Token casuale da 256 bit, sicuro in URL e cookie. */
 export function randomToken(): string {
@@ -22,6 +22,30 @@ export function randomId(length: number): string {
     }
   }
   return id;
+}
+
+/**
+ * Chiave per cifrare i segreti dei tool, derivata da un segreto già presente nella configurazione:
+ * un backup del database da solo non basta a leggerli.
+ */
+export function secretsKey(material: string): Buffer {
+  return Buffer.from(hkdfSync("sha256", material, "sharebox", "tool-secrets-v1", 32));
+}
+
+/** AES-256-GCM: "v1." + base64url(iv | tag | testo cifrato). */
+export function encryptSecret(key: Buffer, plain: string): string {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", key, iv);
+  const encrypted = Buffer.concat([cipher.update(plain, "utf8"), cipher.final()]);
+  return `v1.${Buffer.concat([iv, cipher.getAuthTag(), encrypted]).toString("base64url")}`;
+}
+
+export function decryptSecret(key: Buffer, value: string): string {
+  if (!value.startsWith("v1.")) throw new Error("formato del segreto sconosciuto");
+  const data = Buffer.from(value.slice(3), "base64url");
+  const decipher = createDecipheriv("aes-256-gcm", key, data.subarray(0, 12));
+  decipher.setAuthTag(data.subarray(12, 28));
+  return Buffer.concat([decipher.update(data.subarray(28)), decipher.final()]).toString("utf8");
 }
 
 /** Challenge PKCE (RFC 7636, metodo S256). */

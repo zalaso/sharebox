@@ -120,7 +120,7 @@ Young project, running on the author's private instance. Working today: publishi
 Known limitations and next steps:
 - The interface (dashboard, pages, CLI, installer) is in English and Italian, picked from the browser or system language. Other languages are welcome: the dictionaries are in `packages/platform/src/messages.ts`, `packages/platform/dashboard/app.js`, `packages/runtime/src/messages.ts` and `packages/cli/src/i18n.ts`.
 - Single server: about 25 tools running at once on 2 GB of RAM; stopping idle tools is planned.
-- Tools cannot call external APIs yet (no internet access, no secrets) — planned, behind an egress proxy.
+- Tools reach nothing outside themselves unless they declare domains in `sharebox.json` (`network.allow`); those calls go through an HTTPS-only egress proxy with per-tool secrets ([ADR 0009](docs/adr/0009-uscita-controllata.md), Italian).
 - Sign-in with Google only; publishing is limited to the e-mails listed in `CREATOR_EMAILS`.
 
 ## Documentation

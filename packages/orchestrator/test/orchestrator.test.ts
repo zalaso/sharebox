@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -16,6 +16,8 @@ class FakeDocker implements Docker {
   layers = ["sha256:strato-a", "sha256:strato-b"];
   toolContainers: { Names?: string[]; State: string; Labels: Record<string, string> }[] = [];
 
+  platformIps: Record<string, string> = {};
+
   image() {
     return { Id: this.imageId, RootFS: { Type: "layers", Layers: this.layers }, Config: { Cmd: ["workerd", "serve"] } };
   }
@@ -24,6 +26,9 @@ class FakeDocker implements Docker {
     this.calls.push({ method, path, body });
     if (method === "GET" && path.startsWith("/images/")) return { status: 200, body: this.image() };
     if (method === "GET" && path.startsWith("/containers/json?")) return { status: 200, body: this.toolContainers };
+    if (method === "GET" && path === "/containers/sharebox-platform-1/json") {
+      return { status: 200, body: { NetworkSettings: { Networks: Object.fromEntries(Object.entries(this.platformIps).map(([n, ip]) => [n, { IPAddress: ip }])) } } };
+    }
     const net = /^\/networks\/([^/?]+)(\/connect|\/disconnect)?$/.exec(path);
     if (method === "GET" && path.startsWith("/networks?")) return { status: 200, body: [...this.networks].map((Name) => ({ Name })) };
     if (method === "GET" && net) return this.networks.has(net[1]!) ? { status: 200, body: {} } : { status: 404, body: { message: "not found" } };
@@ -167,6 +172,39 @@ describe("rollback", () => {
   });
 });
 
+describe("uscita verso internet (ADR 0009)", () => {
+  const TOKEN = "t".repeat(43);
+  const envOf = () => (docker.calls.filter((c) => c.path.startsWith("/containers/create")).at(-1)!.body as { Env: string[] }).Env;
+
+  it("senza token il runtime riceve variabili vuote", async () => {
+    await orchestrator.deploy("abc", 1, files);
+    expect(envOf()).toEqual(["SHAREBOX_EGRESS_URL=", "SHAREBOX_EGRESS_TOKEN="]);
+  });
+
+  it("con il token: indirizzo della piattaforma sulla rete del tool, token in un file leggibile solo da root", async () => {
+    docker.platformIps = { "sbx-tool-abc": "172.20.0.2" };
+    await orchestrator.deploy("abc", 1, files, TOKEN);
+    expect(envOf()).toEqual(["SHAREBOX_EGRESS_URL=http://172.20.0.2:8091", `SHAREBOX_EGRESS_TOKEN=${TOKEN}`]);
+    if (process.platform !== "win32") expect((await stat(join(dir, "abc", "egress-token"))).mode & 0o777).toBe(0o600);
+    // Ripubblicare senza token toglie l'uscita.
+    await orchestrator.deploy("abc", 2, files, null);
+    expect(envOf()).toEqual(["SHAREBOX_EGRESS_URL=", "SHAREBOX_EGRESS_TOKEN="]);
+  });
+
+  it("refreshAll ricrea il tool se la piattaforma ha cambiato indirizzo sulla sua rete", async () => {
+    docker.platformIps = { "sbx-tool-abc": "172.20.0.2" };
+    await orchestrator.deploy("abc", 1, files, TOKEN);
+    const label = (docker.calls.filter((c) => c.path.startsWith("/containers/create")).at(-1)!.body as { Labels: Record<string, string> }).Labels;
+    docker.toolContainers = [{ State: "running", Labels: label }];
+    docker.calls = [];
+    expect((await orchestrator.refreshAll()).upToDate).toBe(1);
+
+    docker.platformIps = { "sbx-tool-abc": "172.20.0.5" };
+    expect((await orchestrator.refreshAll()).refreshed).toEqual(["abc"]);
+    expect(envOf()[0]).toBe("SHAREBOX_EGRESS_URL=http://172.20.0.5:8091");
+  });
+});
+
 describe("remove e sync", () => {
   it("elimina container, rete, volume e file", async () => {
     await orchestrator.deploy("abc", 1, files);
@@ -205,6 +243,7 @@ describe("refreshAll", () => {
       runtimeImage: "sharebox-runtime:latest",
       hostCodeDir: join("/opt/sharebox/data/tools", id, `v${version}`),
       runtime: runtimeFingerprint(docker.image()),
+      env: ["SHAREBOX_EGRESS_URL=", "SHAREBOX_EGRESS_TOKEN="],
     }).Labels[SPEC_LABEL];
 
   it("ricrea solo i container superati, con la stessa versione; un tool sospeso resta fermo", async () => {

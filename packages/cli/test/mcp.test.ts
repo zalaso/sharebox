@@ -132,7 +132,8 @@ describe("server MCP", () => {
     const text = (await call("sharebox_guide")).result.content[0]!.text;
     expect(text).toContain("sharebox.collection");
     expect(text).toContain("canEdit");
-    expect(text).toContain("non può raggiungere internet");
+    expect(text).toContain("network.allow");
+    expect(text).toContain("{{secret:NOME}}");
   });
 
   it("accetta ancora i nomi italiani della prima versione, con i loro parametri", async () => {

@@ -31,6 +31,7 @@ const config: Config = {
   runtimeEntryPath: "",
   dashboardDir: dir,
   cliTarballPath: "",
+  egressPort: 8091,
 };
 
 const store = new Store(openDatabase(":memory:"));

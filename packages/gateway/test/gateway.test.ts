@@ -101,6 +101,19 @@ describe("createGateway", () => {
     expect(await res.text()).toBe("<p>ciao</p>");
   });
 
+  it("aggiunge la CSP che limita le connessioni del browser al tool e ai domini dichiarati, senza togliere quella del tool", async () => {
+    const withConnect: Authentication = { ...allowed, connect: ["api.meteo.example", "*.cdn.example"] };
+    const { handle } = setup(() => new Response("ok", { headers: { "content-security-policy": "img-src 'self'" } }), async () => withConnect);
+    const res = await handle(new Request("https://ferie.sbx.duckdns.org/"));
+    const policies = res.headers.get("content-security-policy")!;
+    expect(policies).toContain("img-src 'self'");
+    expect(policies).toContain("connect-src 'self' https://api.meteo.example https://*.cdn.example");
+    expect(policies).toContain("frame-ancestors 'self'");
+
+    const { handle: plain } = setup();
+    expect((await plain(new Request("https://ferie.sbx.duckdns.org/"))).headers.get("content-security-policy")).toMatch(/^connect-src 'self';/);
+  });
+
   it("risponde 502 se il container non risponde", async () => {
     const { handle } = setup(() => Promise.reject(new TypeError("fetch failed")));
     expect((await handle(new Request("https://ferie.sbx.duckdns.org/"))).status).toBe(502);

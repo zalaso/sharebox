@@ -293,7 +293,15 @@ export function createMcpHandler(deps: McpDeps) {
   };
 }
 
-function describeTool(tool: { name: string; url: string; version: number | null; owner: string; grants?: { type: "user" | "domain" | "anyone"; value?: string; role: "use" | "manage" }[] }): string {
+function describeTool(tool: {
+  name: string;
+  url: string;
+  version: number | null;
+  owner: string;
+  grants?: { type: "user" | "domain" | "anyone"; value?: string; role: "use" | "manage" }[];
+  network?: { allow: string[] };
+  secrets?: { name: string; host: string }[];
+}): string {
   const grants = tool.grants ?? [];
   const lines = [
     `${tool.name} — ${tool.url}`,
@@ -301,6 +309,8 @@ function describeTool(tool: { name: string; url: string; version: number | null;
     grants.length === 0 ? m("mcp_shared_none") : m("mcp_shared_with"),
     ...grants.map((g) => `- ${describeGrant(g)}: ${describeRole(g.role)}`),
   ];
+  if (tool.network?.allow.length) lines.push(m("network_line", { hosts: tool.network.allow.join(", ") }));
+  if (tool.secrets?.length) lines.push(m("secrets_line", { names: tool.secrets.map((s) => `${s.name} (${s.host})`).join(", ") }));
   return lines.join("\n");
 }
 

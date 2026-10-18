@@ -8,9 +8,10 @@ import { browserLogin } from "./login";
 import { createMcpHandler, serveStdio } from "./mcp";
 import { ProjectError } from "./project";
 import { describeGrant, describeRole, formatBytes, parseRole, parseTarget, publish, resolveTool } from "./operations";
+import { readSecret } from "./secret-input";
 import { initProject } from "./template";
 
-export const VERSION = "0.1.5";
+export const VERSION = "0.1.6";
 
 const HELP = {
   it: `ShareBox ${VERSION} — pubblica e condividi tool web
@@ -29,6 +30,9 @@ const HELP = {
                                           con: email, @dominio.it oppure chiunque
   sharebox unshare <tool> <con>           toglie una condivisione
   sharebox rollback <tool>                torna alla versione precedente (rifarlo annulla)
+  sharebox secret set <tool> <NOME> --host <dominio>
+                                          segreto per un servizio esterno (il valore si digita senza vederlo)
+  sharebox secret list|remove <tool> [NOME]
   sharebox delete <tool> --yes            elimina tool e dati, senza ritorno
   sharebox guide                          istruzioni per costruire un tool (per agenti)
   sharebox mcp                            server MCP su stdio, per gli agenti
@@ -52,6 +56,9 @@ Variabili: SHAREBOX_URL, SHAREBOX_TOKEN, SHAREBOX_LANG (it oppure en).`,
                                           with: email, @domain.com or anyone
   sharebox unshare <tool> <with>          remove a share
   sharebox rollback <tool>                go back to the previous version (run again to undo)
+  sharebox secret set <tool> <NAME> --host <domain>
+                                          secret for an external service (typed without echo)
+  sharebox secret list|remove <tool> [NAME]
   sharebox delete <tool> --yes            delete the tool and its data, for good
   sharebox guide                          how to build a tool (for agents)
   sharebox mcp                            MCP server on stdio, for agents
@@ -76,7 +83,7 @@ function parseArgs(argv: string[]): Parsed {
     }
     const [key, inline] = arg.slice(2).split("=", 2) as [string, string | undefined];
     if (inline !== undefined) parsed.flags[key] = inline;
-    else if (["name", "role", "tool"].includes(key) && argv[i + 1] !== undefined) parsed.flags[key] = argv[++i]!;
+    else if (["name", "role", "tool", "host"].includes(key) && argv[i + 1] !== undefined) parsed.flags[key] = argv[++i]!;
     else parsed.flags[key] = true;
   }
   return parsed;
@@ -151,6 +158,7 @@ export async function main(argv: string[]): Promise<number> {
         m(result.created ? "published" : "updated", { name: result.tool.name, url: result.tool.url }),
         m("version_line", { version: result.tool.version ?? "-", files: result.files, size: formatBytes(result.bytes), worker: result.worker ? " + worker" : "" }),
       ];
+      if (result.tool.network?.allow.length) lines.push(m("network_line", { hosts: result.tool.network.allow.join(", ") }));
       if (result.relinked) lines.push(m("relinked", { file: join(resolve(dir), "sharebox.json") }));
       if (result.created) lines.push(m("private_hint", { dir }));
       print(lines.join("\n"), result);
@@ -205,6 +213,30 @@ export async function main(argv: string[]): Promise<number> {
       const target = parseTarget(need(args[1], "what_unshare_target"));
       const tool = await client.unshare(id, target);
       print(m("unshared", { name: tool.name, who: describeGrant(target) }), tool);
+      return 0;
+    }
+
+    case "secret": {
+      const [action, ref, name] = args;
+      if (!["set", "list", "remove"].includes(action ?? "")) throw new ProjectError(m("secret_usage"));
+      const client = await authenticatedClient();
+      const id = await resolveTool(client, need(ref, "what_tool"));
+      if (action === "list") {
+        const secrets = await client.listSecrets(id);
+        print(secrets.length === 0 ? m("no_secrets") : secrets.map((s) => `${s.name} → ${s.host}`).join("\n"), secrets);
+        return 0;
+      }
+      const secretName = need(name, "what_secret_name");
+      if (action === "remove") {
+        await client.removeSecret(id, secretName);
+        print(m("secret_removed", { name: secretName }));
+        return 0;
+      }
+      const host = flag("host");
+      if (!host) throw new ProjectError(m("secret_host_required"));
+      const value = await readSecret(m("secret_prompt", { name: secretName }));
+      await client.setSecret(id, secretName, host, value);
+      print(m("secret_set", { name: secretName, host }));
       return 0;
     }
 

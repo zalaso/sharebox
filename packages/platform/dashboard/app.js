@@ -84,6 +84,11 @@ const TEXT = {
     oom_warning: "L'ultima volta il tool è stato fermato perché ha superato la memoria disponibile (128 MB).",
     restarting_warning: "Il tool va in errore all'avvio: guarda i log qui sotto.",
     rollback: "Torna alla versione precedente",
+    internet: "Internet",
+    internet_none: "nessun accesso",
+    secrets: "Segreti",
+    act_secret_set: "ha impostato il segreto {name} per {host}",
+    act_secret_remove: "ha tolto il segreto {name}",
     rollback_confirm: "Tornare ai file della versione {version}? Saranno pubblicati come versione nuova: stesso link, dati invariati. Si può annullare rifacendolo.",
     rolled_back: "Tornato alla versione precedente",
     no_messages: "Nessun messaggio.",
@@ -191,6 +196,11 @@ const TEXT = {
     oom_warning: "Last time the tool was stopped because it exceeded the available memory (128 MB).",
     restarting_warning: "The tool fails on startup: check the logs below.",
     rollback: "Go back to the previous version",
+    internet: "Internet",
+    internet_none: "no access",
+    secrets: "Secrets",
+    act_secret_set: "set the secret {name} for {host}",
+    act_secret_remove: "removed the secret {name}",
     rollback_confirm: "Go back to the files of version {version}? They will be published as a new version: same link, data unchanged. You can undo it by doing it again.",
     rolled_back: "Back to the previous version",
     no_messages: "No messages.",
@@ -569,6 +579,10 @@ async function fillStatus(tool, card) {
   }
   add(t("version"), tool.version === null ? t("never_published") : String(tool.version));
   if (tool.publishedAt) add(t("published"), dateTime.format(tool.publishedAt));
+  // Uscita verso internet e segreti (ADR 0009): si leggono qui, si cambiano da sharebox.json e dalla CLI.
+  const allow = (tool.network && tool.network.allow) || [];
+  add(t("internet"), allow.length ? allow.join(", ") : t("internet_none"));
+  if (tool.secrets && tool.secrets.length) add(t("secrets"), tool.secrets.map((s) => `${s.name} → ${s.host}`).join(", "));
   const warnings = [];
   if (status.oomKilled) warnings.push(t("oom_warning"));
   if (status.state === "restarting") warnings.push(t("restarting_warning"));
@@ -617,6 +631,8 @@ const ACTIONS = {
   "tool.suspend": () => t("act_suspend"),
   "tool.resume": () => t("act_resume"),
   "tool.rollback": (d) => t("act_rollback", { restored: d.restored, version: d.version }),
+  "secret.set": (d) => t("act_secret_set", { name: d.name, host: d.host }),
+  "secret.remove": (d) => t("act_secret_remove", { name: d.name }),
   "grant.set": (d) => t("act_grant_set", { who: describePrincipal(d.principal), role: ROLE[d.role].toLowerCase() }),
   "grant.remove": (d) => t("act_grant_remove", { who: describePrincipal(d.principal) }),
 };

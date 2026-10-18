@@ -48,6 +48,8 @@ Then just ask: *"Build a vacation tracker for my team and publish it on ShareBox
 | `sharebox info <tool>` | Address, version and shares |
 | `sharebox share <tool> <with> [--role use\|manage]` | `<with>`: an email, `@domain.com` or `anyone` |
 | `sharebox unshare <tool> <with>` | Remove a share |
+| `sharebox secret set <tool> <NAME> --host <domain>` | Secret for an external service, typed without echo (or piped on stdin); the tool uses `{{secret:NAME}}` in requests to that domain |
+| `sharebox secret list <tool>` · `sharebox secret remove <tool> <NAME>` | Secret names and domains (never values) · remove one |
 | `sharebox rollback <tool>` | Go back to the previous version (published again as a new version, same link and data); run it again to undo |
 | `sharebox delete <tool> --yes` | Delete a tool and its data |
 | `sharebox guide` | How to build a tool (written for agents) |

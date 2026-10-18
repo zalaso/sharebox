@@ -119,6 +119,22 @@ describe("publish su un tool esistente (opzione tool)", () => {
   });
 });
 
+describe("publish con network.allow", () => {
+  it("invia i domini dichiarati in sharebox.json, normalizzati", async () => {
+    const platform = fakePlatform();
+    const dir = await tempProject({ "sharebox.json": '{ "name": "Meteo", "network": { "allow": ["API.Meteo.example"] } }', "public/index.html": "x" });
+    await publish(platform.client, dir);
+    expect((platform.deploys[0] as { network?: unknown }).network).toEqual({ allow: ["api.meteo.example"] });
+  });
+
+  it("un dominio non valido ferma la pubblicazione prima di creare il tool", async () => {
+    const platform = fakePlatform();
+    const dir = await tempProject({ "sharebox.json": '{ "name": "Meteo", "network": { "allow": ["https://api.meteo.example/v1"] } }', "public/index.html": "x" });
+    await expect(publish(platform.client, dir)).rejects.toThrow(/non è un dominio valido/);
+    expect(platform.tools.size).toBe(0);
+  });
+});
+
 describe("resolveTool", () => {
   it("accetta cartella, id, indirizzo e nome", async () => {
     const platform = fakePlatform();

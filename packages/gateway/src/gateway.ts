@@ -5,7 +5,15 @@ import { toolSlugFromHost } from "./host";
 
 /** Esito del controllo di accesso: inoltrare al tool, oppure rispondere subito (login, 403, 404…). */
 export type Authentication =
-  | { ok: true; identity: Identity; role: Role; /** es. `http://tool-abc:8080` */ upstream: string }
+  | {
+      ok: true;
+      identity: Identity;
+      role: Role;
+      /** es. `http://tool-abc:8080` */
+      upstream: string;
+      /** Domini che le pagine del tool possono contattare dal browser, oltre a se stesse (ADR 0009). */
+      connect?: readonly string[];
+    }
   | { ok: false; response: Response };
 
 export interface GatewayOptions {
@@ -45,6 +53,23 @@ const MAX_BUFFERED_BODY = 1024 * 1024;
 function errorCode(error: unknown): string | undefined {
   const { code, cause } = error as { code?: string; cause?: { code?: string } };
   return cause?.code ?? code;
+}
+
+/**
+ * Content-Security-Policy aggiunta a ogni risposta dei tool (ADR 0009). Limita le connessioni dal browser
+ * (fetch, XHR, WebSocket, sendBeacon) al tool stesso e ai domini dichiarati, così una pagina non può mandare
+ * altrove i dati che l'utente digita. Script, stili, font e immagini restano liberi: le librerie da CDN funzionano.
+ * Si aggiunge a un'eventuale CSP del tool: il browser le applica tutte.
+ */
+export function toolCsp(connect: readonly string[] = []): string {
+  const hosts = connect.map((host) => `https://${host}`).join(" ");
+  return [
+    `connect-src 'self'${hosts ? ` ${hosts}` : ""}`,
+    "form-action 'self'",
+    "frame-ancestors 'self'",
+    "base-uri 'self'",
+    "object-src 'none'",
+  ].join("; ");
 }
 
 // Header legati alla singola connessione o alla compressione: non vanno inoltrati al tool.
@@ -106,10 +131,12 @@ export function createGateway(options: GatewayOptions): (request: Request) => Pr
     } finally {
       clearTimeout(timer);
     }
+    const returned = returnedHeaders(upstream.headers, SESSION_COOKIE);
+    returned.append("content-security-policy", toolCsp(auth.connect));
     return new Response(upstream.body, {
       status: upstream.status,
       statusText: upstream.statusText,
-      headers: returnedHeaders(upstream.headers, SESSION_COOKIE),
+      headers: returned,
     });
   };
 }

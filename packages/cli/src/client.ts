@@ -19,6 +19,15 @@ export interface ToolInfo {
   owner: string;
   version: number | null;
   grants?: Grant[];
+  network?: { allow: string[] };
+  secrets?: { name: string; host: string }[];
+}
+
+export interface SecretInfo {
+  name: string;
+  host: string;
+  updatedAt: number;
+  updatedBy: string;
 }
 
 export class ShareboxError extends Error {
@@ -55,8 +64,20 @@ export class ShareboxClient {
     return this.call<ToolInfo>("POST", "/api/tools", { name });
   }
 
-  deploy(id: string, files: Record<string, string>, worker?: string) {
-    return this.call<ToolInfo>("POST", `/api/tools/${id}/deploy`, { files, worker });
+  deploy(id: string, files: Record<string, string>, worker?: string, network?: { allow: string[] }) {
+    return this.call<ToolInfo>("POST", `/api/tools/${id}/deploy`, { files, worker, network });
+  }
+
+  async listSecrets(id: string): Promise<SecretInfo[]> {
+    return (await this.call<{ secrets: SecretInfo[] }>("GET", `/api/tools/${id}/secrets`)).secrets;
+  }
+
+  async setSecret(id: string, name: string, host: string, value: string): Promise<SecretInfo[]> {
+    return (await this.call<{ secrets: SecretInfo[] }>("PUT", `/api/tools/${id}/secrets/${encodeURIComponent(name)}`, { value, host })).secrets;
+  }
+
+  async removeSecret(id: string, name: string): Promise<SecretInfo[]> {
+    return (await this.call<{ secrets: SecretInfo[] }>("DELETE", `/api/tools/${id}/secrets/${encodeURIComponent(name)}`)).secrets;
   }
 
   share(id: string, grant: Omit<Grant, "role">, role: Role) {

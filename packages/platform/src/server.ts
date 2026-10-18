@@ -6,7 +6,9 @@ import { createGateway } from "@sharebox/gateway";
 import { runAdmin } from "./admin";
 import { createApi } from "./api";
 import { loadConfig } from "./config";
+import { secretsKey } from "./crypto";
 import { openDatabase } from "./db";
+import { createEgressHandler } from "./egress";
 import { nodeHandler } from "./node-http";
 import { httpOrchestrator } from "./orchestrator-client";
 import { createPlatformApp } from "./platform-app";
@@ -51,6 +53,12 @@ if (process.argv[2] === "admin") {
   ).listen(config.port, config.listenHost, () => {
     console.log(`platform su ${config.listenHost}:${config.port} — ${config.platformDomain}, *.${config.toolsDomain}`);
     void syncNetworks();
+  });
+
+  // Proxy di uscita dei tool (ADR 0009): su tutte le interfacce, perché i tool lo raggiungono sulle loro reti.
+  // Risponde solo a chi presenta il token di un tool con domini permessi.
+  createServer(createEgressHandler({ store, secretsKey: secretsKey(config.orchestratorToken) })).listen(config.egressPort, "0.0.0.0", () => {
+    console.log(`proxy di uscita dei tool su :${config.egressPort}`);
   });
 }
 

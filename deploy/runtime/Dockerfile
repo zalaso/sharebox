@@ -4,7 +4,7 @@ FROM node:24-slim
 RUN npm install -g workerd@1.20260926.1 \
  && mkdir -p /tool/code /data \
  && chown node:node /data
-COPY config.capnp /tool/config.capnp
+COPY config.capnp egress.js /tool/
 USER node
 EXPOSE 8080
 CMD ["workerd", "serve", "/tool/config.capnp"]

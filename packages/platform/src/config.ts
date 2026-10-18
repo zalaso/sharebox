@@ -18,6 +18,8 @@ export interface Config {
   dashboardDir: string;
   /** Pacchetto npm della CLI, servito su /cli/sharebox.tgz (facoltativo). */
   cliTarballPath: string;
+  /** Porta del proxy di uscita dei tool (ADR 0009), raggiungibile solo dalle reti dei tool. */
+  egressPort: number;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -41,6 +43,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     runtimeEntryPath: env.RUNTIME_ENTRY_PATH ?? "/app/runtime-entry.js",
     dashboardDir: env.DASHBOARD_DIR ?? "/app/dashboard",
     cliTarballPath: env.CLI_TARBALL_PATH ?? "/app/cli/sharebox.tgz",
+    egressPort: Number(env.EGRESS_PORT ?? 8091),
   };
 }
 

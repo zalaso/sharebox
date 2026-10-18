@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { hashToken } from "../src/crypto";
 import { MAX_TOOLS_PER_CREATOR, createApi, slugify } from "../src/api";
 import { openDatabase } from "../src/db";
 import { OrchestratorError, type Orchestrator } from "../src/orchestrator-client";
@@ -11,9 +12,9 @@ const unb64 = (s: string) => Buffer.from(s, "base64").toString("utf8");
 
 let store: Store;
 let api: (request: Request) => Promise<Response>;
-let deploys: { toolId: string; version: number; files: Record<string, string> }[];
+let deploys: { toolId: string; version: number; files: Record<string, string>; egressToken?: string | null }[];
 let removed: string[];
-let rollbacks: { toolId: string; from: number; to: number; start: boolean; entry: string }[];
+let rollbacks: { toolId: string; from: number; to: number; start: boolean; entry: string; egressToken?: string | null }[];
 let containerCalls: string[];
 let failNext: Error | null;
 let tokens: Record<"guido" | "anna", string>;
@@ -26,16 +27,16 @@ beforeEach(() => {
   containerCalls = [];
   failNext = null;
   const orchestrator: Orchestrator = {
-    deploy: async (toolId, version, files) => {
+    deploy: async (toolId, version, files, egressToken) => {
       if (failNext) throw failNext;
-      deploys.push({ toolId, version, files });
+      deploys.push({ toolId, version, files, egressToken });
     },
     remove: async (toolId) => {
       removed.push(toolId);
     },
-    rollback: async (toolId, from, to, start, entry) => {
+    rollback: async (toolId, from, to, start, entry, egressToken) => {
       if (failNext) throw failNext;
-      rollbacks.push({ toolId, from, to, start, entry });
+      rollbacks.push({ toolId, from, to, start, entry, egressToken });
     },
     sync: async () => 0,
     status: async (toolId) => {
@@ -184,7 +185,7 @@ describe("elenco ed eliminazione", () => {
     const res = await call("POST", `/api/tools/${tool.id}/rollback`, "guido");
     expect(res.status).toBe(200);
     expect(((await res.json()) as { version: number }).version).toBe(3);
-    expect(rollbacks).toEqual([{ toolId: tool.id, from: 1, to: 3, start: true, entry: Buffer.from(RUNTIME).toString("base64") }]);
+    expect(rollbacks).toEqual([{ toolId: tool.id, from: 1, to: 3, start: true, entry: Buffer.from(RUNTIME).toString("base64"), egressToken: null }]);
     const activity = (await (await call("GET", `/api/tools/${tool.id}/activity`, "guido")).json()) as { events: { action: string; details: unknown }[] };
     expect(activity.events[0]).toMatchObject({ action: "tool.rollback", details: { version: 3, restored: 1, from: 2 } });
 
@@ -212,6 +213,60 @@ describe("elenco ed eliminazione", () => {
     expect((await call("POST", `/api/tools/${tool.id}/rollback`, "guido")).status).toBe(502);
     failNext = null;
     expect(store.latestDeployment(tool.id)!.version).toBe(2);
+  });
+
+  it("uscita verso internet: i domini dichiarati attivano un token nuovo a ogni pubblicazione, e senza domini niente token", async () => {
+    const tool = await createTool();
+    const publish = (network?: object) => call("POST", `/api/tools/${tool.id}/deploy`, "guido", { files: { "index.html": b64("x") }, network });
+
+    const res = await publish({ allow: ["API.Meteo.example", "*.cdn.example"] });
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { network: { allow: string[] } }).network.allow).toEqual(["api.meteo.example", "*.cdn.example"]);
+    const first = deploys[0]!.egressToken!;
+    expect(first).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(store.toolByEgressToken(hashToken(first))?.id).toBe(tool.id);
+
+    await publish({ allow: ["api.meteo.example"] });
+    const second = deploys[1]!.egressToken!;
+    expect(second).not.toBe(first);
+    expect(store.toolByEgressToken(hashToken(first))).toBeNull(); // il token vecchio non vale più
+
+    await publish();
+    expect(deploys[2]!.egressToken).toBeNull();
+    expect(store.toolByEgressToken(hashToken(second))).toBeNull();
+    expect(store.toolById(tool.id)!.networkAllow).toEqual([]);
+
+    expect((await publish({ allow: ["https://api.meteo.example/v1"] })).status).toBe(400);
+  });
+
+  it("segreti: si impostano e si tolgono, si legge solo nome e dominio, mai il valore", async () => {
+    const tool = await createTool();
+    const path = `/api/tools/${tool.id}/secrets`;
+    const res = await call("PUT", `${path}/METEO_KEY`, "guido", { value: "chiave-vera", host: "api.meteo.example" });
+    expect(res.status).toBe(200);
+    const listed = JSON.stringify(await (await call("GET", path, "guido")).json());
+    expect(listed).toContain("METEO_KEY");
+    expect(listed).toContain("api.meteo.example");
+    expect(listed).not.toContain("chiave-vera");
+    expect(JSON.stringify(await (await call("GET", `/api/tools/${tool.id}`, "guido")).json())).not.toContain("chiave-vera");
+    // Nel database il valore è cifrato.
+    expect(store.secretValues(tool.id)[0]!.value).toMatch(/^v1./);
+
+    expect((await call("PUT", `${path}/minuscolo`, "guido", { value: "x", host: "api.meteo.example" })).status).toBe(400);
+    expect((await call("PUT", `${path}/ALTRO`, "guido", { value: "", host: "api.meteo.example" })).status).toBe(400);
+    expect((await call("PUT", `${path}/ALTRO`, "guido", { value: "x", host: "https://x" })).status).toBe(400);
+
+    expect((await call("DELETE", `${path}/METEO_KEY`, "guido")).status).toBe(200);
+    expect((await call("DELETE", `${path}/METEO_KEY`, "guido")).status).toBe(404);
+    const activity = (await (await call("GET", `/api/tools/${tool.id}/activity`, "guido")).json()) as { events: { action: string }[] };
+    expect(activity.events.map((e) => e.action).slice(0, 2)).toEqual(["secret.remove", "secret.set"]);
+  });
+
+  it("segreti: chi può solo usare il tool non li vede né li cambia", async () => {
+    const tool = await createTool();
+    await call("PUT", `/api/tools/${tool.id}/grants`, "guido", { type: "user", value: "anna@azienda.com", role: "use" });
+    expect((await call("GET", `/api/tools/${tool.id}/secrets`, "anna")).status).toBe(403);
+    expect((await call("PUT", `/api/tools/${tool.id}/secrets/X`, "anna", { value: "x", host: "a.example" })).status).toBe(403);
   });
 
   it("elenca solo i tool che l'utente può gestire", async () => {

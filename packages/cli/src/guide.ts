@@ -60,9 +60,18 @@ export default {
 - env.DB.query usa lo stesso database SQLite del tool: crea le tue tabelle (la tabella sharebox_records è delle collezioni). Le regole delle collezioni qui non valgono: i permessi li controlli tu con x-sharebox-role.
 - È un Worker standard (Request, Response, fetch, crypto): niente API di Node, niente file system.
 
+## Chiamare servizi esterni (API)
+Di base il tool non raggiunge niente fuori da se stesso. Per chiamare un servizio, dichiara il dominio in sharebox.json:
+\`\`\`json
+{ "name": "Meteo", "network": { "allow": ["api.openweathermap.org"] } }
+\`\`\`
+- Solo HTTPS, verso i domini elencati (al massimo 20; \`*.example.com\` copre i sottodomini). Vale sia per le fetch del worker sia per quelle della pagina nel browser.
+- Le chiavi API non vanno mai scritte nel codice. Chiedi all'utente di salvarle con \`sharebox secret set <tool> NOME --host api.openweathermap.org\` e usa il segnaposto \`{{secret:NOME}}\` nell'indirizzo, negli header o nel corpo della richiesta. La piattaforma lo sostituisce solo nelle richieste verso quel dominio; il codice del tool non vede mai il valore.
+- Le chiamate con una chiave vanno fatte dal worker (worker.ts), non dalla pagina: nel browser il segnaposto non viene sostituito.
+- Limiti: richiesta fino a 1 MB, risposta fino a 10 MB, 20 secondi, 120 richieste al minuto.
+
 ## Cosa non c'è
-- Lato server il tool non può raggiungere internet: niente chiamate a servizi esterni dal worker, niente chiavi API o segreti.
-- Nel browser invece si possono caricare librerie da CDN (per esempio cdn.jsdelivr.net).
+- Nel browser si possono caricare librerie da CDN (per esempio cdn.jsdelivr.net); le chiamate dirette (fetch) dalla pagina invece arrivano solo al tool stesso e ai domini in network.allow.
 - Niente passaggio di build sulla piattaforma: in public/ vanno file già pronti.
 - Nomi dei file in public/: solo lettere, cifre, . _ - (niente spazi né accenti). Massimo 500 file e 25 MB.
 
@@ -144,9 +153,18 @@ export default {
 - env.DB.query uses the tool's own SQLite database: create your own tables (the sharebox_records table belongs to collections). Collection rules don't apply here: check permissions yourself with x-sharebox-role.
 - It is a standard Worker (Request, Response, fetch, crypto): no Node APIs, no file system.
 
+## Calling external services (APIs)
+By default the tool reaches nothing outside itself. To call a service, declare its domain in sharebox.json:
+\`\`\`json
+{ "name": "Weather", "network": { "allow": ["api.openweathermap.org"] } }
+\`\`\`
+- HTTPS only, to the listed domains (at most 20; \`*.example.com\` covers subdomains). This applies both to the worker's fetches and to the page's fetches in the browser.
+- Never write API keys in the code. Ask the user to store them with \`sharebox secret set <tool> NAME --host api.openweathermap.org\` and use the placeholder \`{{secret:NAME}}\` in the URL, headers or body of the request. The platform replaces it only in requests to that domain; the tool's code never sees the value.
+- Calls that need a key must be made from the worker (worker.ts), not from the page: in the browser the placeholder is not replaced.
+- Limits: request up to 1 MB, response up to 10 MB, 20 seconds, 120 requests per minute.
+
 ## What is not available
-- Server-side, the tool cannot reach the internet: no calls to external services from the worker, no API keys or secrets.
-- In the browser, libraries can be loaded from a CDN (for example cdn.jsdelivr.net).
+- In the browser, libraries can be loaded from a CDN (for example cdn.jsdelivr.net); direct calls (fetch) from the page only reach the tool itself and the domains in network.allow.
 - No build step on the platform: public/ must contain ready-to-serve files.
 - File names in public/: only letters, digits, . _ - (no spaces or accents). At most 500 files and 25 MB.
 

@@ -120,7 +120,7 @@ Progetto giovane, in uso sull'istanza privata dell'autore. Funziona oggi: pubbli
 Limiti noti e prossimi passi:
 - L'interfaccia (dashboard, pagine, CLI, installatore) è in italiano e in inglese, scelta in base alla lingua del browser o del sistema. Altre lingue sono benvenute: i dizionari sono in `packages/platform/src/messages.ts`, `packages/platform/dashboard/app.js`, `packages/runtime/src/messages.ts` e `packages/cli/src/i18n.ts`.
 - Un solo server: circa 25 tool accesi insieme con 2 GB di RAM; è previsto lo spegnimento dei tool inattivi.
-- I tool non possono ancora chiamare API esterne (niente internet, niente segreti): previsto, tramite un proxy in uscita.
+- I tool non raggiungono niente fuori da se stessi, a meno di dichiarare i domini in `sharebox.json` (`network.allow`): quelle chiamate passano da un proxy in uscita solo HTTPS, con segreti per tool ([ADR 0009](docs/adr/0009-uscita-controllata.md)).
 - Login solo con Google; pubblicano solo le email elencate in `CREATOR_EMAILS`.
 
 ## Documentazione

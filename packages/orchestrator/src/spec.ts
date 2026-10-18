@@ -63,10 +63,16 @@ export function volumeSpec(id: string) {
   return { Name: names(id).volume, Labels: { [TOOL_LABEL]: id } };
 }
 
-export function containerSpec(id: string, version: number, options: { runtimeImage: string; hostCodeDir: string; runtime: string }) {
+export function containerSpec(
+  id: string,
+  version: number,
+  options: { runtimeImage: string; hostCodeDir: string; runtime: string; env: readonly string[] },
+) {
   const n = names(id);
   const spec = {
     Image: options.runtimeImage,
+    // Indirizzo e token del proxy di uscita (ADR 0009); vuoti se il tool non ha rete. Li legge solo il runtime.
+    Env: [...options.env],
     Labels: { [TOOL_LABEL]: id, "sharebox.version": String(version), "sharebox.runtime": options.runtime },
     HostConfig: {
       Runtime: "runsc",

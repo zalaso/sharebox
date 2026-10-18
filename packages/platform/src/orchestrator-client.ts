@@ -15,10 +15,11 @@ export interface LogLine {
 
 export interface Orchestrator {
   /** `files`: percorso → contenuto in base64, già completi dei file della piattaforma. */
-  deploy(toolId: string, version: number, files: Record<string, string>): Promise<void>;
+  /** `egressToken`: token per il proxy di uscita (ADR 0009), null se il tool non ha rete. */
+  deploy(toolId: string, version: number, files: Record<string, string>, egressToken: string | null): Promise<void>;
   remove(toolId: string): Promise<void>;
   /** Ripubblica i file della versione `from` come versione `to`, con il runtime `entry` (base64). */
-  rollback(toolId: string, from: number, to: number, start: boolean, entry: string): Promise<void>;
+  rollback(toolId: string, from: number, to: number, start: boolean, entry: string, egressToken: string | null): Promise<void>;
   sync(): Promise<number>;
   status(toolId: string): Promise<ToolStatus>;
   logs(toolId: string, tail: number): Promise<LogLine[]>;
@@ -51,14 +52,14 @@ export function httpOrchestrator(baseUrl: string, token: string, fetchFn: typeof
   }
 
   return {
-    deploy: async (toolId, version, files) => {
-      await call("PUT", `/tools/${toolId}/versions/${version}`, { files });
+    deploy: async (toolId, version, files, egressToken) => {
+      await call("PUT", `/tools/${toolId}/versions/${version}`, { files, egressToken });
     },
     remove: async (toolId) => {
       await call("DELETE", `/tools/${toolId}`);
     },
-    rollback: async (toolId, from, to, start, entry) => {
-      await call("POST", `/tools/${toolId}/rollback`, { from, to, start, entry });
+    rollback: async (toolId, from, to, start, entry, egressToken) => {
+      await call("POST", `/tools/${toolId}/rollback`, { from, to, start, entry, egressToken });
     },
     sync: async () => Number((await call("POST", "/sync")).networks ?? 0),
     status: async (toolId) => (await call("GET", `/tools/${toolId}/status`)) as unknown as ToolStatus,

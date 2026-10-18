@@ -1,6 +1,6 @@
 // File dei tool sul disco del server: <toolsDir>/<id>/v<versione>/…
 import { existsSync } from "node:fs";
-import { cp, mkdir, readdir, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve, sep } from "node:path";
 import { bundleProblem, describeBundleProblem } from "@sharebox/shared";
 import { InvalidRequest } from "./spec";
@@ -41,6 +41,26 @@ export async function copyVersion(toolsDir: string, id: string, from: number, to
   await cp(source, target, { recursive: true });
   await mkdir(join(target, "_sharebox"), { recursive: true, mode: 0o755 });
   await writeFile(join(target, "_sharebox", "entry.js"), entry, { mode: 0o644 });
+}
+
+/**
+ * Token con cui il tool si presenta al proxy di uscita della piattaforma (ADR 0009). Sta accanto alle versioni,
+ * fuori da quelle montate nel container, e serve per ricreare il container negli aggiornamenti e nei rollback.
+ * null = il tool non ha uscita verso internet.
+ */
+export async function writeEgressToken(toolsDir: string, id: string, token: string | null): Promise<void> {
+  const file = join(toolsDir, id, "egress-token");
+  if (token === null) return rm(file, { force: true });
+  await mkdir(join(toolsDir, id), { recursive: true, mode: 0o755 });
+  await writeFile(file, token, { mode: 0o600 });
+}
+
+export async function readEgressToken(toolsDir: string, id: string): Promise<string | null> {
+  try {
+    return (await readFile(join(toolsDir, id, "egress-token"), "utf8")).trim() || null;
+  } catch {
+    return null;
+  }
 }
 
 /** Tiene solo le versioni indicate (la corrente e la precedente, per il rollback). */

@@ -14,6 +14,8 @@ const WORKER_ENTRIES = ["worker.ts", "worker.js", "worker.mjs", "src/worker.ts",
 export interface Manifest {
   name?: string;
   id?: string;
+  /** Domini raggiungibili dal tool (ADR 0009). */
+  network?: { allow?: unknown };
 }
 
 export class ProjectError extends Error {}

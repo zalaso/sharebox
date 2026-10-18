@@ -85,6 +85,22 @@ const MIGRATIONS = [
     PRIMARY KEY (tool_id, version)
   );
   `,
+  // Uscita controllata verso internet e segreti (ADR 0009).
+  `
+  ALTER TABLE tools ADD COLUMN network_allow TEXT NOT NULL DEFAULT '[]';
+  ALTER TABLE tools ADD COLUMN egress_token_hash TEXT;
+  CREATE UNIQUE INDEX tools_egress_token ON tools (egress_token_hash) WHERE egress_token_hash IS NOT NULL;
+
+  CREATE TABLE tool_secrets (
+    tool_id TEXT NOT NULL REFERENCES tools(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    host TEXT NOT NULL,
+    value TEXT NOT NULL,
+    updated_at INTEGER NOT NULL,
+    updated_by TEXT NOT NULL,
+    PRIMARY KEY (tool_id, name)
+  );
+  `,
 ];
 
 export function openDatabase(path: string): DatabaseSync {

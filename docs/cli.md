@@ -34,6 +34,8 @@ Indica l'indirizzo della tua ShareBox: ogni installazione è indipendente. Si ap
 | `sharebox info <tool>` | Indirizzo, versione, condivisioni |
 | `sharebox share <tool> <con> [--role use\|manage]` | `con`: un'email, `@dominio.it` oppure `chiunque` (o `anyone`) |
 | `sharebox unshare <tool> <con>` | Toglie una condivisione |
+| `sharebox secret set <tool> <NOME> --host <dominio>` | Segreto per un servizio esterno: il valore si digita senza vederlo (o arriva da stdin). Il tool lo usa con `{{secret:NOME}}` nelle richieste verso quel dominio |
+| `sharebox secret list <tool>` · `sharebox secret remove <tool> <NOME>` | Nomi e domini dei segreti (mai i valori) · toglie un segreto |
 | `sharebox rollback <tool>` | Torna alla versione precedente: i suoi file vengono ripubblicati come versione nuova, stesso link e dati invariati. Rifarlo annulla il rollback |
 | `sharebox delete <tool> --yes` | Elimina tool e dati; senza `--yes` chiede conferma |
 | `sharebox guide` | Istruzioni per costruire un tool (pensate per gli agenti) |
@@ -46,7 +48,8 @@ La CLI parla italiano o inglese: decide `SHAREBOX_LANG` (`it` o `en`), altriment
 ## Cartella di un tool
 ```
 mio-tool/
-  sharebox.json   {"name": "…", "id": "…"}    ← l'id lo scrive il primo publish: va conservato
+  sharebox.json   {"name": "…", "id": "…", "network": {"allow": ["api.example.com"]}}
+                  ← l'id lo scrive il primo publish: va conservato; network è facoltativo (ADR 0009)
   public/         file statici
   worker.ts       opzionale (anche worker.js, src/worker.ts): impacchettato con esbuild, import compresi
 ```
