@@ -41,16 +41,16 @@ Il primo avvio scarica le immagini e ottiene il certificato wildcard: può richi
 
 | # | Verifica | Atteso |
 |---|---|---|
-| 1 | Aprire `https://spike.guido-sbx.duckdns.org/` | Pagina servita con certificato valido (wildcard) |
+| 1 | Aprire `https://spike.esempio.duckdns.org/` | Pagina servita con certificato valido (wildcard) |
 | 2 | Riquadro "Dati e identità" | `email: spike@sharebox.invalid`, `nome: Spike Tester` |
-| 3 | `curl -H "x-sharebox-email: finto@x.com" -H "cookie: __Host-sharebox=abc; tema=scuro" https://spike.guido-sbx.duckdns.org/__sharebox/ping` | Email sempre quella dello spike; `cookie` = `tema=scuro` |
+| 3 | `curl -H "x-sharebox-email: finto@x.com" -H "cookie: __Host-sharebox=abc; tema=scuro" https://spike.esempio.duckdns.org/__sharebox/ping` | Email sempre quella dello spike; `cookie` = `tema=scuro` |
 | 4 | Ricaricare più volte, poi `docker compose up -d --force-recreate tool-spike` | `visite` continua a crescere dopo la ricreazione del container |
-| 5 | Aprire `https://altro.guido-sbx.duckdns.org/` | `visite` parte da 1: dati separati |
+| 5 | Aprire `https://altro.esempio.duckdns.org/` | `visite` parte da 1: dati separati |
 | 6 | Sul server: `bash /opt/sharebox/checks/isolamento.sh` | `Isolamento OK`: ogni tool raggiunge solo se stesso |
 | 7 | Aprire `/__sharebox/burn` su spike e subito dopo `altro`; leggere `cpu.max` del container | `altro` risponde subito; `cpu.max` = `25000 100000` (25% di una CPU) |
 | 8 | Aprire `/__sharebox/mem` su spike | Nessun "memoria NON limitata"; il container viene riavviato, `altro` e l'app personale sul server non se ne accorgono |
 | 9 | `docker stats --no-stream` | Memoria per tool, per stimare quanti tool reggono i 2 GB |
-| 10 | Aprire `https://inesistente.guido-sbx.duckdns.org/` | 502 (in Fase 1 diventerà 404 con il registro dei tool) |
+| 10 | Aprire `https://inesistente.esempio.duckdns.org/` | 502 (in Fase 1 diventerà 404 con il registro dei tool) |
 
 Gli esiti vanno annotati in fondo a questo file.
 
@@ -69,7 +69,7 @@ Spike **superato**, con una correzione applicata durante la prova e un'attività
 
 | # | Esito |
 |---|---|
-| 1 | OK: HTTP 200, certificato wildcard Let's Encrypt `*.guido-sbx.duckdns.org` ottenuto via DNS-01 in circa 10 s |
+| 1 | OK: HTTP 200, certificato wildcard Let's Encrypt `*.esempio.duckdns.org` ottenuto via DNS-01 in circa 10 s |
 | 2–3 | OK: identità iniettata dal gateway, header falsi del client ignorati, `__Host-sharebox` tolto (`cookie` = `tema=scuro`) |
 | 4 | OK: contatore conservato dopo `docker compose down` + `up` e dopo un crash per memoria |
 | 5 | OK: `altro` ha un contatore separato |

@@ -1,4 +1,4 @@
-// Rotte della piattaforma (sharebox.getceng.it) per il login. Le pagine statiche le serve Caddy.
+// Rotte della piattaforma (sharebox.example.com) per il login. Le pagine statiche le serve Caddy.
 import { effectiveRole } from "./access";
 import type { Config } from "./config";
 import { LOGIN_STATE_COOKIE, PLATFORM_SESSION_COOKIE, clearHostCookie, hostCookie, readCookie } from "./cookies";

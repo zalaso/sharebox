@@ -1,4 +1,4 @@
-/** Sessione sulla piattaforma (sharebox.getceng.it). */
+/** Sessione sulla piattaforma (sharebox.example.com). */
 export const PLATFORM_SESSION_COOKIE = "__Host-sharebox-platform";
 
 /** Lega il login Google al browser che l'ha iniziato: impedisce di far completare a qualcun altro il proprio login. */

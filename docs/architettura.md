@@ -7,14 +7,14 @@ Documento di riferimento. Le decisioni con alternative scartate sono negli ADR i
 | Decisione | Scelta | ADR |
 |---|---|---|
 | Dove girano i tool | Server netcup: un container gVisor + workerd per tool | [0005](adr/0005-server-netcup-container-gvisor.md) |
-| Domini | Piattaforma su `sharebox.getceng.it`, tool su `guido-sbx.duckdns.org` | [0002](adr/0002-domini-separati.md) |
+| Domini | Piattaforma su `sharebox.example.com`, tool su `esempio.duckdns.org` | [0002](adr/0002-domini-separati.md) |
 | Chi pubblica | Solo creatori invitati; visitatori con qualunque account Google autorizzato | [0006](adr/0006-piattaforma-privata.md) |
 | Codice server | `worker.ts` supportato già nell'MVP | [0004](adr/0004-worker-ts-nell-mvp.md) |
 | Processi | Gateway e API in un solo processo `platform` con SQLite | [0007](adr/0007-processo-unico-platform.md) |
 | Container dei tool | Li crea solo l'orchestratore, con specifica fissa e sicura | [0008](adr/0008-orchestratore.md) |
 | Costo | Nessuno oltre al server già pagato | |
 
-Nomi usati qui: `sharebox.getceng.it` = piattaforma · `guido-sbx.duckdns.org` = tool.
+Nomi usati qui: `sharebox.example.com` = piattaforma · `esempio.duckdns.org` = tool.
 
 Server: netcup VPS nano, 2 vCPU, 2 GB di RAM, Ubuntu 24.04, Docker. Ospita anche un'app personale (raggiungibile solo via Tailscale).
 
@@ -25,9 +25,9 @@ Internet
    │ :443
    ▼
 ┌──────────────────────────────────────────────────────────────────────┐
-│ Caddy — HTTPS; certificato wildcard *.guido-sbx.duckdns.org (DNS-01) │
-│   sharebox.getceng.it  → api                                         │
-│   *.guido-sbx.duckdns.org → gateway                                  │
+│ Caddy — HTTPS; certificato wildcard *.esempio.duckdns.org (DNS-01) │
+│   sharebox.example.com  → api                                         │
+│   *.esempio.duckdns.org → gateway                                  │
 │   solo sull'IP pubblico; l'app personale resta su Tailscale          │
 └───────┬───────────────────────────────┬──────────────────────────────┘
         ▼                               ▼
@@ -62,8 +62,8 @@ Internet
 
 ## Login e identità
 
-1. Il visitatore apre `ferie-k3x9.guido-sbx.duckdns.org`; il gateway non trova sessione e reindirizza a `sharebox.getceng.it/login?tool=…`.
-2. Login Google (OIDC, scope `openid email profile`). La sessione su `sharebox.getceng.it` dà il single sign-on tra tool.
+1. Il visitatore apre `ferie-k3x9.esempio.duckdns.org`; il gateway non trova sessione e reindirizza a `sharebox.example.com/login?tool=…`.
+2. Login Google (OIDC, scope `openid email profile`). La sessione su `sharebox.example.com` dà il single sign-on tra tool.
 3. La piattaforma torna al tool con un **codice monouso** a scadenza breve; il gateway lo scambia con l'API e imposta il cookie `__Host-sharebox` (`HttpOnly`, `Secure`, `SameSite=Lax`, valido solo per quell'host).
 4. Prima di inoltrare al container il gateway:
    - rifiuta le richieste che modificano dati se `Sec-Fetch-Site` non è `same-origin` o `none` (i tool sono "stesso sito" tra loro);

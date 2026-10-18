@@ -1,7 +1,7 @@
 export interface Config {
-  /** Dominio dei tool, es. `guido-sbx.duckdns.org`. */
+  /** Dominio dei tool, es. `esempio.duckdns.org`. */
   toolsDomain: string;
-  /** Dominio della piattaforma, es. `sharebox.getceng.it`. */
+  /** Dominio della piattaforma, es. `sharebox.example.com`. */
   platformDomain: string;
   googleClientId: string;
   googleClientSecret: string;
