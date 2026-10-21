@@ -1,5 +1,7 @@
 # sharebox-cli
 
+[![LightNow capabilities](https://lightnow.ai/badge/io.github.zalaso/sharebox)](https://lightnow.ai/servers/io.github.zalaso/sharebox)
+
 Command line and MCP server for [ShareBox](https://github.com/zalaso/sharebox), a self-hosted platform where AI agents publish small web tools and you share them like a Google Doc: with specific people, a whole Google Workspace domain, or anyone with the link. Visitors sign in with Google; every tool gets a trusted identity, its own storage and its own sandbox.
 
 You need a running ShareBox instance (yours or your organization's). To set one up, see the [install guide](https://github.com/zalaso/sharebox/blob/main/docs/install.md).
